@@ -111,6 +111,23 @@ Following the ZZ example:
 ./submit_condor_gridpack_generation.sh ZZ2e2mu_cW_cHWB_cHDD_cHbox_cHW_cHl1_cHl3_cHq1_cHq3_cqq1_cqq11_cqq31_cqq3_cll_cll1_SM_LI_QU_IN cards/ZZ2e2mu/ZZ2e2mu_cW_cHWB_cHDD_cHbox_cHW_cHl1_cHl3_cHq1_cHq3_cqq1_cqq11_cqq31_cqq3_cll_cll1_SM_LI_QU_IN (n_cores) ("memory")
 ```
 
+Why is it highly suggested to generate through condor? You will be able to generate a gridpack ~ 10 times faster as the INTEGRATE step will be submitted to various worker node via condor.
+
+As an example, a gridpack on cmsconnect running locally will be ablle to execute 48 jobs simultaneously (Idle means job waiting to be run)
+
+```
+INFO:  Idle: 613,  Running: 48,  Completed: 535 [  73h 49m  ] # the INTEGRATE steps has been running for ~ 3 days, and 3 days approx. left
+```
+
+Different gridpack but with batch submission:
+
+```
+INFO:  Idle: 0,  Running: 423,  Completed: 179 [  3m 19s  ]
+```
+
+You can see that condor submission can handle >10 times simultaneous jobs that local generation (and your jobs won't be centrally killed by cmsconnect mainteiners as you won't overload the machines).
+
+
 ## Screen (or tmux)
 
 Gridpacks usually take from O(h) to O(days) to be completed. It is unfeasible to stay connected for such a long time length. Screen (or tmux) are essential tools in order to issue commands and leave it running also after disconnecting from the ssh tunnel. Both lxplus and cmsconnect provide out of the box screen support:
