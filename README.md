@@ -180,7 +180,7 @@ You can also create an alias for this command in your `.bash_profile` or `.bashr
 kscreen(){
     if [[ -z "$1" ]]; then #if no argument passed
         echo "First argument must be the executable name"
-    else #pass the argument as the tmux session name
+    else #pass the argument to screen
         k5reauth -f -i 3600 -p USERNAME -k /afs/cern.ch/user/u/username/private/ktokens/USERNAME.keytab  -- screen $1
     fi
 }
