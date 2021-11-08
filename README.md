@@ -111,6 +111,87 @@ Following the ZZ example:
 ./submit_condor_gridpack_generation.sh ZZ2e2mu_cW_cHWB_cHDD_cHbox_cHW_cHl1_cHl3_cHq1_cHq3_cqq1_cqq11_cqq31_cqq3_cll_cll1_SM_LI_QU_IN cards/ZZ2e2mu/ZZ2e2mu_cW_cHWB_cHDD_cHbox_cHW_cHl1_cHl3_cHq1_cHq3_cqq1_cqq11_cqq31_cqq3_cll_cll1_SM_LI_QU_IN (n_cores) ("memory")
 ```
 
+## Screen (or tmux)
+
+Gridpacks usually take from O(h) to O(days) to be completed. It is unfeasible to stay connected for such a long time length. Screen (or tmux) are essential tools in order to issue commands and leave it running also after disconnecting from the ssh tunnel. Both lxplus and cmsconnect provide out of the box screen support:
+
+```
+screen # open a new scren session
+screen -ls # list all open screen sessions on the worker node
+screen -rD _ID_ # connect to a detached screen session with id = _ID_
+```
+
+After issuing the `screen` command a new shell will be opened. You can use it the same way as a normal terminal session. In order to detach from the screen session type `Ctrl + A + D`. You will be redirected to the shell in which the `screen`command wa issued and you can inspect the opened screen session:
+
+```
+[gboldrin@lxplus731 MadGraph5_aMCatNLO]$ screen -ls
+There is a screen on:
+	9358.pts-12.lxplus731	(Detached)
+1 Socket in /var/run/screen/S-gboldrin.
+```
+
+`9358` is the session ID. To reconnect:
+
+```
+screen -rD 9358
+screen -rD 9358.pts-12.lxplus731
+```
+
+**WARNING**:
+
+There some differences between lxplus and cmsconnect regarding screen. On lxplus you usually log into a worker node (from the example above 731 machine) while on cmsconnect there is only one machine. If you open a screen session on lxplus and then detach from it and log out from the ssh, you'll need to store the machine number and reconnect to the same machine in order to retrive the screen session. From the example above:
+
+```
+ssh username@lxplus731.cern.ch
+screen -rD 9358
+```
+
+Furthermore, the screen session on lxplus works with kerberos tokens which allow the session to have permission to write/read from your afs area. These tickets are created with the command `kinit` and authorised with your lxplus login password. The tickets last for 25 hours after ssh disconnection and there is no way to change that. After 25h the commands won't be able to, for example, read or create files in your user area.
+
+One way to create a persistent screen session on lxplus is to create a keytab which automatically refresh your expired tickets.
+
+From a private folder on your afs (e.g. `/afs/cern.ch/user/u/username/private`) type:
+
+```
+mkdir ktokens && ktutil
+```
+
+A new prompt will appear. Type in the prompt the following lines:
+
+```
+add_entry -password -p USERNAME@CERN.CH -k 1 -e arcfour-hmac-md5
+add_entry -password -p USERNAME@CERN.CH -k 1 -e aes256-cts
+wkt USERNAME.keytab
+Ctrl+D #close ktutil session
+```
+
+`k5reauth` can now be used, it will issue user defined commands in a child process and will renew your kerberos tokes after N seconds also for the child itself.
+
+Using the ZZ VBS example, this command will create a permanent screen session with renewable tokens once every 3600 seconds:
+
+```
+cd /path/to/genproductions/bin/MadGraph5_aMCatNLO/
+k5reauth -f -i 3600 -p USERNAME -k /afs/cern.ch/user/u/username/private/ktokens/USERNAME.keytab -- screen ./submit_cmsconnect_gridpack_generation.sh ZZ2e2mu_cW_cHWB_cHDD_cHbox_cHW_cHl1_cHl3_cHq1_cHq3_cqq1_cqq11_cqq31_cqq3_cll_cll1_SM_LI_QU_IN cards/ZZ2e2mu/ZZ2e2mu_cW_cHWB_cHDD_cHbox_cHW_cHl1_cHl3_cHq1_cHq3_cqq1_cqq11_cqq31_cqq3_cll_cll1_SM_LI_QU_IN
+```
+
+You can also create an alias for this command in your `.bash_profile` or `.bashrc`
+
+```
+kscreen(){
+    if [[ -z "$1" ]]; then #if no argument passed
+        echo "First argument must be the executable name"
+    else #pass the argument as the tmux session name
+        k5reauth -f -i 3600 -p USERNAME -k /afs/cern.ch/user/u/username/private/ktokens/USERNAME.keytab  -- screen $1
+    fi
+}
+```
+
+and use it as a normal screen session:
+
+`
+kscreen ./submit_cmsconnect_gridpack_generation.sh ZZ2e2mu_cW_cHWB_cHDD_cHbox_cHW_cHl1_cHl3_cHq1_cHq3_cqq1_cqq11_cqq31_cqq3_cll_cll1_SM_LI_QU_IN cards/ZZ2e2mu/ZZ2e2mu_cW_cHWB_cHDD_cHbox_cHW_cHl1_cHl3_cHq1_cHq3_cqq1_cqq11_cqq31_cqq3_cll_cll1_SM_LI_QU_IN
+`
+
 
 # Problems
 
