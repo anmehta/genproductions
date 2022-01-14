@@ -209,12 +209,53 @@ and use it as a normal screen session:
 kscreen ./submit_cmsconnect_gridpack_generation.sh ZZ2e2mu_cW_cHWB_cHDD_cHbox_cHW_cHl1_cHl3_cHq1_cHq3_cqq1_cqq11_cqq31_cqq3_cll_cll1_SM_LI_QU_IN cards/ZZ2e2mu/ZZ2e2mu_cW_cHWB_cHDD_cHbox_cHW_cHl1_cHl3_cHq1_cHq3_cqq1_cqq11_cqq31_cqq3_cll_cll1_SM_LI_QU_IN
 `
 
+# Resubmitting Gridpacks 
 
-# Problems
+Suppose your codegen sstep run fine but something broke at Integration. You do not need to run everything again. You'll have a folder named as your `<card_name>`
+with two subfolders: `<card_name>/<card_name>_gridpack`and `<card_name>/<card_name>_output.tar.xz` . To resubmit some step both on local or condor:
 
-It may happen that a gridpack runs smoothly in local (`gridpack_generation_EFT.sh`) while it will crash in batch mode (`submit_cmsconnect_gridpack_generation.sh` or `submit_condor_gridpack_generation.sh`). It is suggested to look at the run card of your process.
-If working with the master branch as of 8/11/2021 (MG5_2_6_5) then try to simply copy the run card `cards/ZZ2e2mu/ZZ2e2mu_cW_cHWB_cHDD_cHbox_cHW_cHl1_cHl3_cHq1_cHq3_cqq1_cqq11_cqq31_cqq3_cll_cll1_SM_LI_QU_IN/*_run_card.dat` under your process dirctory and issue the batch submission again. If the generation runs fine, simply modify the run card as you need.
+```
+source Utilities/cmsconnect_utils.sh
+source Utilities/source_condor.sh
 
+cd <card_name>
+rm -rf <card_name>_gridpack 
+cmssw_setup <card_name>_output.tar.xz; cd ..
+iscmsconnect=1 bash -x gridpack_generation_all.sh ${card_name} ${card_dir} ${workqueue} INTEGRATE ${scram_arch} ${cmssw_version}
+```
 
+For example the last line can be issued on condor as:
+
+```
+iscmsconnect=1 bash -x gridpack_generation_all.sh <card_name> <card_dir> condor INTEGRATE
+```
+
+# Integrate Compilation errors for very large EFT gridpacks
+
+It may happen that after the codegen step your EFT gridpack breaks at the pilot run with some cryptic compilation error. This may be due to an error problem as MGv2_6_5 is not design to exploit the full RAM of the node but it is limited. To unlock this limitation and resubmit successfully follow the steps of the chapter "Resubmitting Gridpacks" up to the line `cmssw_setup <card_name>_output.tar.xz`. This command will untar the codegen output and create a `<card_name>_gridpack` folder. Now issue 
+
+```
+cd <card_name>_gridpack/work/<card_name>
+``` 
+
+you will see a MG folder e.g.
+
+```
+ls WmTo2JZto2L_dim6_ewk/WmTo2JZto2L_dim6_ewk_gridpack/work/WmTo2JZto2L_dim6_ewk
+Cards  Events  HTML  MGMEVersion.txt  README  README.systematics  Source  SubProcesses	TemplateVersion.txt  bin  index.html  lib  madevent.tar.gz
+```
+
+Issue the command
+
+```
+sed -i.bak '/FFLAGS= -O -w -fbounds-check -fPIC/s/$/ -mcmodel=medium/' Source/make_opts
+```
+
+and resubmit the INTEGRATE step
+
+```
+cd -
+iscmsconnect=1 bash -x gridpack_generation_all.sh <card_name> <card_dir> condor INTEGRATE
+```
 
 
