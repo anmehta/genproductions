@@ -221,13 +221,13 @@ source Utilities/source_condor.sh
 cd <card_name>
 rm -rf <card_name>_gridpack 
 cmssw_setup <card_name>_output.tar.xz; cd ..
-iscmsconnect=1 bash -x gridpack_generation_all.sh ${card_name} ${card_dir} ${workqueue} INTEGRATE ${scram_arch} ${cmssw_version}
+iscmsconnect=1 bash -x gridpack_generation_EFT.sh ${card_name} ${card_dir} ${workqueue} INTEGRATE ${scram_arch} ${cmssw_version}
 ```
 
 For example the last line can be issued on condor as:
 
 ```
-iscmsconnect=1 bash -x gridpack_generation_all.sh <card_name> <card_dir> condor INTEGRATE
+iscmsconnect=1 bash -x gridpack_generation_EFT.sh <card_name> <card_dir> condor INTEGRATE
 ```
 
 # Integrate Compilation errors for very large EFT gridpacks
