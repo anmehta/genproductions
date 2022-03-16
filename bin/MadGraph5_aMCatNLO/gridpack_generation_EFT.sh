@@ -556,7 +556,8 @@ make_gridpack () {
               echo "" >> makegrid.dat
       fi
       echo "done" >> makegrid.dat
-    
+      
+      sed -i.bak '/FFLAGS= -O -w -fbounds-check -fPIC/s/$/ -mcmodel=medium/' Source/make_opts 
     #   set +e
       cat makegrid.dat | ./bin/generate_events pilotrun
       echo "finished pilot run"
