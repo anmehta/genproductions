@@ -222,6 +222,8 @@ class CMSCondorCluster(CondorCluster):
                   notification = Error
                   Initialdir = %(cwd)s
                   %(requirement)s
+                  request_memory = 4096
+                  request_cpus   = 2
                   getenv=True
                   %(leave_in_queue)s
                   
