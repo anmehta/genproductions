@@ -712,7 +712,7 @@ fi
 helpers_dir=${PRODHOME%genproductions*}/genproductions/Utilities
 helpers_file=${helpers_dir}/gridpack_helpers.sh
 if [ ! -f "$helpers_file" ]; then
-  if ! [ -x "$(command -v git)" ]; then
+  if  [ -x "$(command -v git)" ]; then
     helpers_dir=${PRODHOME}/Utilities
   else
     helpers_dir=$(git rev-parse --show-toplevel)/bin/MadGraph5_aMCatNLO/Utilities
