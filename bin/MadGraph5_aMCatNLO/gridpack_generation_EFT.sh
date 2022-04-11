@@ -31,7 +31,11 @@ make_tarball () {
         XZ_OPT="--lzma2=preset=9,dict=512MiB"
     fi
 
-    mkdir InputCards
+    if [ -d InputCards ]; then 
+      rm -rf InputCards
+    fi
+
+    mkdir -p InputCards
     cp $CARDSDIR/${name}*.* InputCards
 
     EXTRA_TAR_ARGS=""
@@ -309,7 +313,7 @@ make_gridpack () {
           if [ "${runMadSTR}" -lt 1 ] || [ "${runMadSTR}" -gt 6 ] ; then
               echo "istr should be between 1 and 6" # wrong settings 
               exit 1
-	  fi
+	        fi
       fi
       if [  "$runMadSTR" == 0 ]; then 
 	  ./$MGBASEDIRORIG/bin/mg5_aMC ${name}_proc_card.dat # normal run without plugin 
@@ -354,7 +358,11 @@ make_gridpack () {
           if [ "${BASH_SOURCE[0]}" != "${0}" ]; then return 0; else exit 0; fi
       fi
     
-    elif [ "${jobstep}" = "INTEGRATE" ] || [ "${jobstep}" = "ALL" ]; then  
+    # # # # # # # # # # # # # # # #
+    # HERE CODEGEN STEP IS FINISHED
+    # # # # # # # # # # # # # # # #
+
+    elif [ "${jobstep}" = "INTEGRATE" ] || [ "${jobstep}" = "ALL" || [ "${jobstep}" = "REWEIGHT" ]; then  
       echo "Reusing existing directory assuming generated code already exists"
       echo "WARNING: If you changed the process card you need to clean the folder and run from scratch"
     
@@ -403,17 +411,28 @@ make_gridpack () {
       fi
     
     fi  
+
+    if [ "${jobstep}" = "INTEGRATE" ]; then 
+      # If integrate step then clean up folder
+      # prom previous (unsuccessful ? ) runs
+      # and start from scratch
+
+      # if not on integrate step we want to keep these 
+      # folders (e.g. reweight) or at least some of them 
+      # because they store all the integrate information 
     
-    if [ -d gridpack ]; then
-      rm -rf gridpack
-    fi
-    
-    if [ -d processtmp ]; then
-      rm -rf processtmp
-    fi
-    
-    if [ -d process ]; then
-      rm -rf process
+      if [ -d gridpack ]; then
+        rm -rf gridpack
+      fi
+      
+      if [ -d processtmp ]; then
+        rm -rf processtmp
+      fi
+      
+      if [ -d process ]; then
+        rm -rf process
+      fi
+
     fi
     
     if [ ! -d ${name} ]; then
@@ -482,112 +501,198 @@ make_gridpack () {
       echo "copying custom params file"
       cp $CARDSDIR/${name}_param_card.dat ./Cards/param_card.dat
     fi
-     
-    if [ "$isnlo" -gt "0" ]; then
-    #NLO mode  
-      #######################
-      #Run the integration and generate the grid
-      #######################
-      echo "starting NLO mode"
     
-      if [ -e $CARDSDIR/${name}_madspin_card.dat ]; then
-        cp $CARDSDIR/${name}_madspin_card.dat ./Cards/madspin_card.dat
-      fi
-      
-      echo "shower=OFF" > makegrid.dat
-      echo "reweight=OFF" >> makegrid.dat
-      echo "done" >> makegrid.dat
-      if [ -e $CARDSDIR/${name}_customizecards.dat ]; then
-              cat $CARDSDIR/${name}_customizecards.dat | sed '/^$/d;/^#.*$/d' >> makegrid.dat
-              echo "" >> makegrid.dat
-      fi
-      echo "done" >> makegrid.dat
+    # # # # # # # # # # # #
+    # HERE STARTS THE INTEGRATE STEP
+    # # # # # # # # # # # #
+    if [ "${jobstep}" = "INTEGRATE" ] || [ "${jobstep}" = "ALL" ]; then
 
-      cat makegrid.dat | ./bin/generate_events -n pilotrun
-      # Run this step separately in debug mode since it gives so many problems
-      if [ -e $CARDSDIR/${name}_reweight_card.dat ]; then
-          echo "preparing reweighting step"
-          prepare_reweight $isnlo $WORKDIR $scram_arch $CARDSDIR/${name}_reweight_card.dat
-	  extract_width $isnlo $WORKDIR $CARDSDIR ${name}
-      fi
+      echo "---> SONO QUI DENTRO"
+      echo $jobstep
+      if [ "$isnlo" -gt "0" ]; then
+        #NLO mode  
+        #######################
+        #Run the integration and generate the grid
+        #######################
+        echo "starting NLO mode"
       
-      echo "finished pilot run"
-      cd $WORKDIR/processtmp
-    
-      if [ -e $CARDSDIR/${name}_externaltarball.dat ]; then
-          gunzip ./Events/pilotrun_decayed_1/events.lhe.gz
-          sed -n '/<MG5ProcCard>/,/<\/slha>/p' ./Events/pilotrun_decayed_1/events.lhe > header_for_madspin.txt
-          mv header_for_madspin.txt $WORKDIR
-          gzip ./Events/pilotrun_decayed_1/events.lhe
-      fi
+        if [ -e $CARDSDIR/${name}_madspin_card.dat ]; then
+          cp $CARDSDIR/${name}_madspin_card.dat ./Cards/madspin_card.dat
+        fi
+        
+        echo "shower=OFF" > makegrid.dat
+        echo "reweight=OFF" >> makegrid.dat
+        echo "done" >> makegrid.dat
+        if [ -e $CARDSDIR/${name}_customizecards.dat ]; then
+                cat $CARDSDIR/${name}_customizecards.dat | sed '/^$/d;/^#.*$/d' >> makegrid.dat
+                echo "" >> makegrid.dat
+        fi
+        echo "done" >> makegrid.dat
+
+        cat makegrid.dat | ./bin/generate_events -n pilotrun
+        # Run this step separately in debug mode since it gives so many problems
+        if [ -e $CARDSDIR/${name}_reweight_card.dat ]; then
+            echo "preparing reweighting step"
+            prepare_reweight $isnlo $WORKDIR $scram_arch $CARDSDIR/${name}_reweight_card.dat
+            extract_width $isnlo $WORKDIR $CARDSDIR ${name}
+        fi
+        
+        echo "finished pilot run"
+        cd $WORKDIR/processtmp
       
-      echo "mg5_path = ../mgbasedir" >> ./Cards/amcatnlo_configuration.txt
-    #   echo "ninja = ../mgbasedir/HEPTools/lib" >> ./Cards/amcatnlo_configuration.txt
-      echo "cluster_temp_path = None" >> ./Cards/amcatnlo_configuration.txt
-    
+        if [ -e $CARDSDIR/${name}_externaltarball.dat ]; then
+            gunzip ./Events/pilotrun_decayed_1/events.lhe.gz
+            sed -n '/<MG5ProcCard>/,/<\/slha>/p' ./Events/pilotrun_decayed_1/events.lhe > header_for_madspin.txt
+            mv header_for_madspin.txt $WORKDIR
+            gzip ./Events/pilotrun_decayed_1/events.lhe
+        fi
+        
+        echo "mg5_path = ../mgbasedir" >> ./Cards/amcatnlo_configuration.txt
+        #   echo "ninja = ../mgbasedir/HEPTools/lib" >> ./Cards/amcatnlo_configuration.txt
+        echo "cluster_temp_path = None" >> ./Cards/amcatnlo_configuration.txt
+      
+        cd $WORKDIR
+        
+        mkdir gridpack
+      
+        mv processtmp gridpack/process
+      
+        cp -a $MGBASEDIRORIG/ gridpack/mgbasedir
+        
+        cd gridpack
+      
+        cp $PRODHOME/runcmsgrid_NLO.sh ./runcmsgrid.sh
+        
+        if [ -e $CARDSDIR/${name}_externaltarball.dat ]; then
+          mv $WORKDIR/header_for_madspin.txt . 
+        fi
+        
+      else
+        #LO mode
+        #######################
+        #Run the integration and generate the grid
+        #######################
+      
+        echo "starting LO mode"
+      
+        echo "done" > makegrid.dat
+        echo "set gridpack True" >> makegrid.dat
+        if [ -e $CARDSDIR/${name}_customizecards.dat ]; then
+                cat $CARDSDIR/${name}_customizecards.dat | sed '/^$/d;/^#.*$/d' >> makegrid.dat
+                echo "" >> makegrid.dat
+        fi
+        echo "done" >> makegrid.dat
+        
+        sed -i.bak '/FFLAGS= -O -w -fbounds-check -fPIC/s/$/ -mcmodel=medium/' Source/make_opts 
+        cat makegrid.dat | ./bin/generate_events pilotrun
+        echo "finished pilot run"
+      
+        cd $WORKDIR
+        
+        #   echo "creating debug tarball"
+        #   cp ${LOGFILE} ./gridpack_generation.log
+        #   DEBUGTARBALL=${name}_debug_tarball.tar.gz
+        #   tar -czps --ignore-failed-read -f ${DEBUGTARBALL} processtmp gridpack_generation.log
+        #   echo "moving tarball to ${PRODHOME}/${DEBUGTARBALL}"
+        #   mv ${DEBUGTARBALL} ${PRODHOME}/${DEBUGTARBALL}
+        #   set -e
+        
+        echo "cleaning temporary output"
+        mv $WORKDIR/processtmp/pilotrun_gridpack.tar.gz $WORKDIR/
+        mv $WORKDIR/processtmp/Events/pilotrun/unweighted_events.lhe.gz $WORKDIR/
+        #rm -rf processtmp
+        mkdir process
+        cd process
+        echo "unpacking temporary gridpack"
+        tar -xzf $WORKDIR/pilotrun_gridpack.tar.gz
+        echo "cleaning temporary gridpack"
+        #rm $WORKDIR/pilotrun_gridpack.tar.gz
+
+        # precompile reweighting if necessary
+        if [ -e $CARDSDIR/${name}_reweight_card.dat ]; then
+            echo "preparing reweighting step"
+            prepare_reweight $isnlo $WORKDIR $scram_arch $CARDSDIR/${name}_reweight_card.dat
+            extract_width $isnlo $WORKDIR $CARDSDIR ${name}
+        fi
+        
+        #prepare madspin grids if necessary
+        if [ -e $CARDSDIR/${name}_madspin_card.dat ]; then
+          echo "import $WORKDIR/unweighted_events.lhe.gz" > madspinrun.dat
+          cat $CARDSDIR/${name}_madspin_card.dat >> madspinrun.dat
+          $WORKDIR/$MGBASEDIRORIG/MadSpin/madspin madspinrun.dat 
+          rm madspinrun.dat
+          rm -rf tmp*
+        fi
+      
+        echo "preparing final gridpack"
+        
+        #set to single core mode
+        echo "mg5_path = ../../mgbasedir" >> ./madevent/Cards/me5_configuration.txt
+        echo "cluster_temp_path = None" >> ./madevent/Cards/me5_configuration.txt
+        echo "run_mode = 0" >> ./madevent/Cards/me5_configuration.txt  
+        
+        cd $WORKDIR
+        
+        mkdir -p gridpack
+
+        if [ -d gridpack/process ]; then 
+          rm -rf gridpack/process
+        fi 
+        
+        mv process gridpack/process
+        cp -a $MGBASEDIRORIG/ gridpack/mgbasedir
+      
+        cd gridpack
+        
+        cp $PRODHOME/runcmsgrid_LO.sh ./runcmsgrid.sh
+      fi
+    fi
+
+    # # # # # # # # # # # # #
+    # Here starts reweight  #
+    # # # # # # # # # # # # #
+
+    if [ "${jobstep}" = "REWEIGHT" ]; then
+
+      # exit on first error
+      set +e 
       cd $WORKDIR
-      
-      mkdir gridpack
-    
-      mv processtmp gridpack/process
-    
-      cp -a $MGBASEDIRORIG/ gridpack/mgbasedir
-      
-      cd gridpack
-    
-      cp $PRODHOME/runcmsgrid_NLO.sh ./runcmsgrid.sh
-      
-      if [ -e $CARDSDIR/${name}_externaltarball.dat ]; then
-        mv $WORKDIR/header_for_madspin.txt . 
-      fi
-      
-    else
-      #LO mode
-      #######################
-      #Run the integration and generate the grid
-      #######################
-    
-      echo "starting LO mode"
-    
-      echo "done" > makegrid.dat
-      echo "set gridpack True" >> makegrid.dat
-      if [ -e $CARDSDIR/${name}_customizecards.dat ]; then
-              cat $CARDSDIR/${name}_customizecards.dat | sed '/^$/d;/^#.*$/d' >> makegrid.dat
-              echo "" >> makegrid.dat
-      fi
-      echo "done" >> makegrid.dat
-      
-      sed -i.bak '/FFLAGS= -O -w -fbounds-check -fPIC/s/$/ -mcmodel=medium/' Source/make_opts 
-    #   set +e
-      cat makegrid.dat | ./bin/generate_events pilotrun
-      echo "finished pilot run"
-    
-      cd $WORKDIR
-      
-    #   echo "creating debug tarball"
-    #   cp ${LOGFILE} ./gridpack_generation.log
-    #   DEBUGTARBALL=${name}_debug_tarball.tar.gz
-    #   tar -czps --ignore-failed-read -f ${DEBUGTARBALL} processtmp gridpack_generation.log
-    #   echo "moving tarball to ${PRODHOME}/${DEBUGTARBALL}"
-    #   mv ${DEBUGTARBALL} ${PRODHOME}/${DEBUGTARBALL}
-    #   set -e
-      
+
+
+      echo "----> starting reweighting!! "
+
       echo "cleaning temporary output"
-      mv $WORKDIR/processtmp/pilotrun_gridpack.tar.gz $WORKDIR/
-      mv $WORKDIR/processtmp/Events/pilotrun/unweighted_events.lhe.gz $WORKDIR/
-      rm -rf processtmp
-      mkdir process
-      cd process
-      echo "unpacking temporary gridpack"
-      tar -xzf $WORKDIR/pilotrun_gridpack.tar.gz
-      echo "cleaning temporary gridpack"
-      rm $WORKDIR/pilotrun_gridpack.tar.gz
+      echo $PWD
+      
+      # It should be here after codegen
+      if [ ! -d process ]; then 
+        # If not that could mean that integrate moved it under gridpack (line  624 for LO)
+        if [ -d gridpack/process ]; then 
+          # bring it back :)
+          mv gridpack/process .
+        else
+          # otherwise create it 
+          mv $WORKDIR/processtmp/pilotrun_gridpack.tar.gz $WORKDIR/
+          mkdir -p process
+          cd process
+          echo "unpacking temporary gridpack"
+          tar -xzf $WORKDIR/pilotrun_gridpack.tar.gz
+        fi
+      fi
+
+      if [ -d process/madevent/rwgt ]; then 
+        rm -rf process/madevent/rwgt
+      fi
+
+      if [ ! -f $WORKDIR/unweighted_events.lhe.gz ]; then 
+        mv $WORKDIR/processtmp/pilotrun/unweighted_events.lhe.gz $WORKDIR/
+      fi
 
       # precompile reweighting if necessary
       if [ -e $CARDSDIR/${name}_reweight_card.dat ]; then
           echo "preparing reweighting step"
           prepare_reweight $isnlo $WORKDIR $scram_arch $CARDSDIR/${name}_reweight_card.dat
-	  extract_width $isnlo $WORKDIR $CARDSDIR ${name}
+          extract_width $isnlo $WORKDIR $CARDSDIR ${name}
       fi
       
       #prepare madspin grids if necessary
@@ -608,13 +713,16 @@ make_gridpack () {
       
       cd $WORKDIR
       
-      mkdir gridpack
-      mv process gridpack/process
-      cp -a $MGBASEDIRORIG/ gridpack/mgbasedir
+      if [ -d gridpack ]; then
+        mkdir -p gridpack
+        mv process gridpack/process
+        cp -a $MGBASEDIRORIG/ gridpack/mgbasedir
+      fi
     
       cd gridpack
       
       cp $PRODHOME/runcmsgrid_LO.sh ./runcmsgrid.sh
+
     fi
     
     sed -i s/SCRAM_ARCH_VERSION_REPLACE/${scram_arch}/g runcmsgrid.sh
@@ -670,6 +778,7 @@ queue=${3}
 
 # processing options
 jobstep=${4}
+echo $jobstep
 
 # sync default cmssw with the current OS 
 export SYSTEM_RELEASE=`cat /etc/redhat-release`
@@ -749,7 +858,7 @@ if [ -z ${jobstep} ]; then
 fi
 
 #Check values of jobstep:
-if [ "${jobstep}" == "ALL" ] || [ "${jobstep}" == "CODEGEN" ] || [ "${jobstep}" == "INTEGRATE" ] || [ "${jobstep}" == "MADSPIN" ]; then
+if [ "${jobstep}" == "ALL" ] || [ "${jobstep}" == "CODEGEN" ] || [ "${jobstep}" == "INTEGRATE" ] || [ "${jobstep}" == "REWEIGHT" ] || [ "${jobstep}" == "MADSPIN" ]; then
     echo "Running gridpack generation step ${jobstep}"
 else
     echo "No Valid Job Step specified, exiting "

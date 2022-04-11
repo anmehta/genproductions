@@ -93,7 +93,7 @@ prepare_reweight () {
         config=./Cards/amcatnlo_configuration.txt
     else
         cd $WORKDIR/process
-	mkdir -p madevent/Events/pilotrun
+	    mkdir -p madevent/Events/pilotrun
         cp $WORKDIR/unweighted_events.lhe.gz madevent/Events/pilotrun
         cd madevent
         config=./madevent/Cards/me5_configuration.txt
@@ -111,7 +111,9 @@ prepare_reweight () {
     if [ -e $(readlink -f `which f2py`)2 ]; then
         echo "f2py_compiler="$(readlink -f `which f2py`)2 >> $config
     fi
-
+    
+    echo "---> SONO QUI"
+    echo $PWD 
     if [ "$isnlo" -gt "0" ]; then
         # Needed to get around python import errors
         rwgt_dir="$WORKDIR/process/rwgt"
