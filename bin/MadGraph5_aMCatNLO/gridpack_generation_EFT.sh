@@ -246,12 +246,12 @@ make_gridpack () {
     
       #load extra models if needed
 
-      wget --no-check-certificate http://gboldrin.web.cern.ch/gboldrin/generators/SMEFTsim_U35_MwScheme_UFO.tar.gz
+      wget --no-check-certificate http://gboldrin.web.cern.ch/gboldrin/generators/SMEFTsim_U35_MwScheme_UFO_b_massless.tar.gz
       cd models
-      tar xavf ../SMEFTsim_U35_MwScheme_UFO.tar.gz
+      tar xavf ../SMEFTsim_U35_MwScheme_UFO_b_massless.tar.gz
       # wget --no-check-certificate https://raw.githubusercontent.com/GiacomoBoldrini/cmsgen/master/restriction_card/restrict_cW_cHq3_cHq1_cll1_cHWB_cHW_cHDD_massless.dat SMEFTsim_U35_MwScheme_UFO
       # cp /home/gboldrin/genproduction_OSWWQCD/bin/MadGraph5_aMCatNLO/restrict_cW_cHWB_cHDD_cHbox_cHW_cHl1_cHl3_cHq1_cHq3_cqq1_cqq11_cqq31_cqq3_cll_cll1_massless.dat SMEFTsim_U35_MwScheme_UFO
-      cd SMEFTsim_U35_MwScheme_UFO
+      cd SMEFTsim_U35_MwScheme_UFO_b_massless
       # wget all restrictions
       wget --no-check-certificate http://gboldrin.web.cern.ch/gboldrin/generators/restrict_cHWB_cHDD_cHl1_cHl3_cHq1_cHq3_cll_cll1_massless.dat
       wget --no-check-certificate http://gboldrin.web.cern.ch/gboldrin/generators/restrict_cW_cHWB_cHDD_cHl1_cHl3_cHq1_cHq3_cll_cll1_massless.dat
