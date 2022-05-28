@@ -126,10 +126,9 @@ make_gridpack () {
     MGBASEDIR=mgbasedir
     
     MG_EXT=".tar.gz"
-    MG=MG5_aMC_v2_6_5$MG_EXT
-    #MGSOURCE=https://cms-project-generators.web.cern.ch/cms-project-generators/$MG
-    MGSOURCE=http://gboldrin.web.cern.ch/gboldrin/generators/$MG    
- 
+    MG=MG5_aMC_v2.6.5$MG_EXT
+    MGSOURCE=https://cms-project-generators.web.cern.ch/cms-project-generators/$MG
+    
     MGBASEDIRORIG=$(echo ${MG%$MG_EXT} | tr "." "_")
     isscratchspace=0
     
@@ -625,6 +624,7 @@ make_gridpack () {
         fi
       
         echo "preparing final gridpack"
+        
         #set to single core mode
         echo "mg5_path = ../../mgbasedir" >> ./madevent/Cards/me5_configuration.txt
         echo "cluster_temp_path = None" >> ./madevent/Cards/me5_configuration.txt
@@ -638,15 +638,12 @@ make_gridpack () {
           rm -rf gridpack/process
         fi 
         
-        cp -r process gridpack/process
         mv process gridpack/process
         cp -a $MGBASEDIRORIG/ gridpack/mgbasedir
+      
         cd gridpack
         
         cp $PRODHOME/runcmsgrid_LO.sh ./runcmsgrid.sh
-      
-        cd process/madevent
-        cd -
       fi
     fi
 
@@ -715,7 +712,7 @@ make_gridpack () {
       
       cd $WORKDIR
       
-      if [ ! -d gridpack ]; then
+      if [ -d gridpack ]; then
         mkdir -p gridpack
         mv process gridpack/process
         cp -a $MGBASEDIRORIG/ gridpack/mgbasedir
@@ -740,7 +737,7 @@ make_gridpack () {
     
     
     #clean unneeded files for generation
-    #${helpers_dir}/cleangridmore.sh
+    ${helpers_dir}/cleangridmore.sh
     
     #
     #Plan to decay events from external tarball?
@@ -906,7 +903,7 @@ if [ "${name}" != "interactive" ]; then
     set +e
     make_gridpack | tee $LOGFILE
     pipe_status=$PIPESTATUS
-    # tee above will create a subshell, so nxit calls inside function will just affect that subshell instance and return the exitcode in this shell.
+    # tee above will create a subshell, so exit calls inside function will just affect that subshell instance and return the exitcode in this shell.
     # This breaks cases when the calls inside make_gridpack try to exit the main shell with some error, hence not having the gridpack directory.
     # or not wanting to create a tarball.
     # Explicitely return or exit accordingly if make_gridpack returned an error.
