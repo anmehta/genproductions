@@ -362,7 +362,7 @@ make_gridpack () {
     # HERE CODEGEN STEP IS FINISHED
     # # # # # # # # # # # # # # # #
 
-    elif [ "${jobstep}" = "INTEGRATE" ] || [ "${jobstep}" = "ALL" || [ "${jobstep}" = "REWEIGHT" ]; then  
+    elif [ "${jobstep}" = "INTEGRATE" ] || [ "${jobstep}" = "ALL" ] || [ "${jobstep}" = "REWEIGHT" ]; then  
       echo "Reusing existing directory assuming generated code already exists"
       echo "WARNING: If you changed the process card you need to clean the folder and run from scratch"
     
