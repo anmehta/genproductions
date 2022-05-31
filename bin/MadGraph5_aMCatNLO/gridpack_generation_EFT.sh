@@ -126,7 +126,7 @@ make_gridpack () {
     MGBASEDIR=mgbasedir
     
     MG_EXT=".tar.gz"
-    MG=MG5_aMC_v2.6.5$MG_EXT
+    MG=MG5_aMC_v2_6_5$MG_EXT
     #MGSOURCE=https://cms-project-generators.web.cern.ch/cms-project-generators/$MG
     MGSOURCE=https://gboldrin.web.cern.ch/gboldrin/generators/$MG
 
