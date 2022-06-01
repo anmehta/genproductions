@@ -125,7 +125,7 @@ prepare_reweight () {
 
     # Explicitly compile all subprocesses to avoid
     # compilation on the cluster
-    for file in $(ls -d rwgt/*/SubProcesses/P*); do
+    for file in $(ls -d rwgt/*/*/SubProcesses/P*); do
         echo "Compiling subprocess $(basename $file)"
         cd $file
         for i in 2 3; do
