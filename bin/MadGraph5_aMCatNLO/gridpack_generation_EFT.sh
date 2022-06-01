@@ -713,7 +713,7 @@ make_gridpack () {
       
       cd $WORKDIR
       
-      if [ -d gridpack ]; then
+      if [ ! -d gridpack ]; then
         mkdir -p gridpack
         mv process gridpack/process
         cp -a $MGBASEDIRORIG/ gridpack/mgbasedir
