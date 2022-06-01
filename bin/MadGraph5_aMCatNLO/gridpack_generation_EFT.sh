@@ -126,9 +126,10 @@ make_gridpack () {
     MGBASEDIR=mgbasedir
     
     MG_EXT=".tar.gz"
-    MG=MG5_aMC_v2_6_5$MG_EXT
-    #MGSOURCE=https://cms-project-generators.web.cern.ch/cms-project-generators/$MG
-    MGSOURCE=https://gboldrin.web.cern.ch/gboldrin/generators/$MG
+    #MG=MG5_aMC_v2_6_5$MG_EXT
+    MG=MG5_aMC_v2.6.5$MG_EXT
+    MGSOURCE=https://cms-project-generators.web.cern.ch/cms-project-generators/$MG
+    #MGSOURCE=https://gboldrin.web.cern.ch/gboldrin/generators/$MG
 
     MGBASEDIRORIG=$(echo ${MG%$MG_EXT} | tr "." "_")
     isscratchspace=0
@@ -172,6 +173,12 @@ make_gridpack () {
       wget --no-check-certificate ${MGSOURCE}
       tar xzf ${MG}
       rm "$MG"
+
+
+      cd $MGBASEDIRORIG/madgraph/interface/
+      rm reweight_interface.py
+      wget http://gboldrin.web.cern.ch/gboldrin/generators/reweight_interface.py
+      cd -
     
       #############################################
       #Apply any necessary patches on top of official release
@@ -247,10 +254,13 @@ make_gridpack () {
     
       #load extra models if needed
 
-      wget --no-check-certificate http://gboldrin.web.cern.ch/gboldrin/generators/SMEFTsim_U35_MwScheme_UFO_b_massless.tar.gz
+      #wget --no-check-certificate http://gboldrin.web.cern.ch/gboldrin/generators/SMEFTsim_U35_MwScheme_UFO_b_massless.tar.gz
+      wget --no-check-certificate http://gboldrin.web.cern.ch/gboldrin/generators/SMEFTsim_topU3l_MwScheme_UFO_b_massless.tar.gz
       cd models
-      tar xavf ../SMEFTsim_U35_MwScheme_UFO_b_massless.tar.gz
-      cd SMEFTsim_U35_MwScheme_UFO_b_massless
+      # tar xavf ../SMEFTsim_U35_MwScheme_UFO_b_massless.tar.gz
+      tar xavf ../SMEFTsim_topU3l_MwScheme_UFO_b_massless.tar.gz
+      # cd SMEFTsim_U35_MwScheme_UFO_b_massless
+      cd SMEFTsim_topU3l_MwScheme_UFO_b_massless
       # wget all restrictions
       wget --no-check-certificate http://gboldrin.web.cern.ch/gboldrin/generators/restrict_cHWB_cHDD_cHl1_cHl3_cHq1_cHq3_cll_cll1_massless.dat
       wget --no-check-certificate http://gboldrin.web.cern.ch/gboldrin/generators/restrict_cW_cHWB_cHDD_cHl1_cHl3_cHq1_cHq3_cll_cll1_massless.dat
