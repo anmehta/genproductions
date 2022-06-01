@@ -175,10 +175,10 @@ make_gridpack () {
       rm "$MG"
 
 
-      cd $MGBASEDIRORIG/madgraph/interface/
-      rm reweight_interface.py
-      wget http://gboldrin.web.cern.ch/gboldrin/generators/reweight_interface.py
-      cd -
+      #cd $MGBASEDIRORIG/madgraph/interface/
+      #rm reweight_interface.py
+      #wget http://gboldrin.web.cern.ch/gboldrin/generators/reweight_interface.py
+      #cd -
     
       #############################################
       #Apply any necessary patches on top of official release
@@ -254,7 +254,7 @@ make_gridpack () {
     
       #load extra models if needed
 
-      #wget --no-check-certificate http://gboldrin.web.cern.ch/gboldrin/generators/SMEFTsim_U35_MwScheme_UFO_b_massless.tar.gz
+      # wget --no-check-certificate http://gboldrin.web.cern.ch/gboldrin/generators/SMEFTsim_U35_MwScheme_UFO_b_massless.tar.gz
       wget --no-check-certificate http://gboldrin.web.cern.ch/gboldrin/generators/SMEFTsim_topU3l_MwScheme_UFO_b_massless.tar.gz
       cd models
       # tar xavf ../SMEFTsim_U35_MwScheme_UFO_b_massless.tar.gz
