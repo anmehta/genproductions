@@ -175,10 +175,10 @@ make_gridpack () {
       rm "$MG"
 
 
-      #cd $MGBASEDIRORIG/madgraph/interface/
-      #rm reweight_interface.py
-      #wget http://gboldrin.web.cern.ch/gboldrin/generators/reweight_interface.py
-      #cd -
+      cd $MGBASEDIRORIG/madgraph/interface/
+      rm reweight_interface.py
+      wget http://gboldrin.web.cern.ch/gboldrin/generators/reweight_interface.py
+      cd -
     
       #############################################
       #Apply any necessary patches on top of official release
