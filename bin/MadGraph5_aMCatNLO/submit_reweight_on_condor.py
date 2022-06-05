@@ -346,16 +346,17 @@ if __name__ == "__main__":
     input_files="input_reweight_{}.tar.gz".format(args.cardname)
 
     
+    #create subfolder to store exec, jid and rew card
+    mkdir(args.subfolder)
+    # Parsing reweight card
+    if not args.createreweight:
+        rd = build_rew_dict(args.cardpath + "/" + args.cardname + "_reweight_card.dat")
+    else:
+        operators = []
+        execfile("operators.py")
+        rd = build_rew_dict_scratch(operators, args.change_process, args.model)
+    
     if any(i in ["rew", "all"] for i in args.task ):
-        #create subfolder to store exec, jid and rew card
-        mkdir(args.subfolder)
-        # Parsing reweight card
-        if not args.createreweight:
-            rd = build_rew_dict(args.cardpath + "/" + args.cardname + "_reweight_card.dat")
-        else:
-            operators = []
-            execfile("operators.py")
-            rd = build_rew_dict_scratch(operators, args.change_process, args.model)
         # write the separate reweight point in a file
         write_rew_dict(rd, args.subfolder, args.cardname, args.cardpath)
 
