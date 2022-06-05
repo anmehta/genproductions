@@ -5,6 +5,7 @@ import copy
 import subprocess
 import time
 from glob import glob
+from operator import itemgetter
 
 
 def precompile_rwgt_dir(madevent_path):
@@ -162,18 +163,95 @@ def write_rew_dict(rew_dict, output_folder, cardname, cardpath):
 
 
         # writing reweight card
-        f = open(output_folder + "rwgt_{}.dat".format(key), "w")
+        f = open(output_folder + "rwgt_{}_{}.dat".format(key, cardname), "w")
         for line in rew_dict[key]:
             f.write(line)
         f.close() 
 
         #writing .jdl
-        write_jdl("rwgt_{}".format(key), cardname, cardpath, output_folder="")
+        write_jdl("rwgt_{}_{}".format(key, cardname), cardname, cardpath, output_folder="")
 
         #writing .sh
-        write_sh("rwgt_{}".format(key), cardname, cardpath, output_folder="")
+        write_sh("rwgt_{}_{}".format(key, cardname), cardname, cardpath, output_folder="")
 
     return 
+
+def build_rew_dict_scratch(operators, change_process , model):
+
+    rew_d = {}
+
+    mandatory = ["change helicity False\n"]
+    mandatory.append("change rwgt_dir rwgt\n")
+
+    if change_process != "": 
+        if not change_process.endswith('\n'): change_process += "\n"
+        mandatory.append(change_process)
+
+    mandatory.append("\n")
+    
+    sortedsel = sorted (operators, key = itemgetter (1))
+
+    # We take all 2D combinations of operators, we then reweight to the following
+    # components (1,0), (-1,0), (0,1), (0,-1), (1,1) as the matrix element
+    # is the same. This is more efficient than generating 5 different reweight dirs.
+    # Howvere we need to keep track of the single operators (the (1,0) (0,1)) already studied
+    # For the other we just evaluate (1,1)
+
+    done_singles = []
+
+    idx = 0
+    for i in range (len (sortedsel)):
+        for j in range (i+1, len (sortedsel)):
+            tag = sortedsel[i][1] + '_' + sortedsel[j][1] 
+            
+            rwgt_points = []
+            rwgt_points += mandatory
+
+            # first append a comment line
+            rwgt_points.append("# {}=1 {}=1 rwgt_{}\n".format(sortedsel[i][1] , sortedsel[j][1], sortedsel[i][1] + "_" + sortedsel[j][1]))
+            # change rwgt direcrory 
+            rwgt_points.append("change rwgt_dir rwgt/rwgt_{}\n".format(tag))
+            # change model
+            rwgt_points.append("change model {}-{}_massless\n".format(model, tag))
+            # evaluate the mixed term (1,1)
+            rwgt_points.append("\n")
+            rwgt_points.append("launch --rwgt_name={}\n".format(sortedsel[i][1] + "_" + sortedsel[j][1]))
+
+            rwgt_points.append("\n")
+            rwgt_points.append("\n")
+
+            # check if first operator already gen
+            if not sortedsel[i][0] in done_singles:
+                # If not then evaluate (1,0) and (-1,0)
+                for val in [-1 ,1]:
+                    tag = sortedsel[i][1]
+                    if val == -1: tag += "m1"
+                    rwgt_points.append("launch --rwgt_name={}\n".format(tag))
+                    rwgt_points.append("    set SMEFT {} {}\n".format(sortedsel[i][0], val))
+                    rwgt_points.append("    set SMEFT {} 0\n".format(sortedsel[j][0]))
+                    rwgt_points.append("\n")
+
+                done_singles.append(sortedsel[i][0])
+
+            # check if first operator already gen
+            if not sortedsel[j][0] in done_singles:
+                # If not then evaluate (1,0) and (-1,0)
+                for val in [-1 ,1]:
+                    tag = sortedsel[j][1]
+                    if val == -1: tag += "m1"
+                    rwgt_points.append("launch --rwgt_name={}\n".format(tag))
+                    rwgt_points.append("    set SMEFT {} {}\n".format(sortedsel[j][0], val))
+                    rwgt_points.append("    set SMEFT {} 0\n".format(sortedsel[i][0]))
+                    rwgt_points.append("\n")
+
+                done_singles.append(sortedsel[j][0])
+
+            rew_d[idx] = copy.copy(rwgt_points)
+
+            idx += 1
+
+    return rew_d
+
 
 def build_rew_dict(rew_card):
     f = open(rew_card, 'r')
@@ -229,11 +307,15 @@ def build_rew_dict(rew_card):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Command line parser')
-    parser.add_argument('-cn', '--cardname',     dest='cardname',     help='The name of the cards, <name>_proc_card.dat', required = True)
-    parser.add_argument('-cp', '--cardpath',     dest='cardpath',     help='The path to the cards directory', required = True)
-    parser.add_argument('-sf', '--subfolder',     dest='subfolder',     help='The path to the folder where .jid, exec and reweight cards will be saved', required = False, default="condor_sub")
-    parser.add_argument('-is5f', '--is5FlavorScheme',     dest='is5FlavorScheme',     help='Is the gridpack intended for 5fs? Default is true', required = False, default=True, action="store_false")
-    parser.add_argument('-iscmsc', '--iscmsconnect',     dest='iscmsconnect',     help='Are you working on cmsconnect? Default is true', required = False, default=True, action="store_false")
+    parser.add_argument('-cn', '--cardname',                    dest='cardname',            help='The name of the cards, <name>_proc_card.dat', required = True)
+    parser.add_argument('-cp', '--cardpath',                    dest='cardpath',            help='The path to the cards directory', required = True)
+    parser.add_argument('-t', '--task',                        dest='task',               help='Tasks to be executed (separated by a space). Default is all', required = False, nargs = "+", default="all")
+    parser.add_argument('-sf', '--subfolder',                   dest='subfolder',           help='The path to the folder where .jid, exec and reweight cards will be saved', required = False, default="condor_sub")
+    parser.add_argument('-is5f', '--is5FlavorScheme',           dest='is5FlavorScheme',     help='Is the gridpack intended for 5fs? Default is true', required = False, default=True, action="store_false")
+    parser.add_argument('-iscmsc', '--iscmsconnect',            dest='iscmsconnect',        help='Are you working on cmsconnect? Default is true', required = False, default=True, action="store_false")
+    parser.add_argument('-cr', '--createreweight',              dest='createreweight',      help='File operator.py will be imported and restriction cards created', required = False, default=False, action="store_true")
+    parser.add_argument('-change_process', '--change_process',  dest='change_process',      help='If args.cr is specified, add this to change process in reweight card', required = False, default="", type=str)
+    parser.add_argument('-m', '--model',                        dest='model',               help='If args.cr is specified, add this to change the baseline model. Default is SMEFTsim_topU3l_MwScheme_UFO_b_massless', required = False, default="SMEFTsim_topU3l_MwScheme_UFO_b_massless", type=str)
 
 
     args = parser.parse_args()
@@ -244,7 +326,8 @@ if __name__ == "__main__":
     if not os.path.isdir(args.cardname): sys.exit("[ERROR] Path {} does not exist".format(args.cardname))
     if not os.path.isfile(args.cardpath + "/" + args.cardname + "_proc_card.dat"): sys.exit("[ERROR] proc card does not exist in {}".format(args.cardpath))
     if not os.path.isfile(args.cardpath + "/" + args.cardname + "_run_card.dat"): sys.exit("[ERROR]  run card does not exist in {}".format(args.cardpath))
-    if not os.path.isfile(args.cardpath + "/" + args.cardname + "_reweight_card.dat"): sys.exit("[ERROR]  reweight card does not exist in {}".format(args.cardpath))
+    if not args.change_process:
+        if not os.path.isfile(args.cardpath + "/" + args.cardname + "_reweight_card.dat"): sys.exit("[ERROR]  reweight card does not exist in {}".format(args.cardpath))
     
 
     PRODHOME = os.getcwd()
@@ -262,122 +345,136 @@ if __name__ == "__main__":
 
     input_files="input_reweight_{}.tar.gz".format(args.cardname)
 
-    #create subfolder to store exec, jid and rew card
-    mkdir(args.subfolder)
-    # Parsing reweight card
-    rd = build_rew_dict(args.cardpath + "/" + args.cardname + "_reweight_card.dat")
-    # write the separate reweight point in a file
-    write_rew_dict(rd, args.subfolder, args.cardname, args.cardpath)
-
     
-    if os.path.isfile(input_files) or os.path.isdir(input_files): 
-        print("Tarball allready present. reusing")
-    else:
-        print("tar -zchvf \"{input_files}\" {rwgt_cards} \"{card_name}\" \"{card_dir}\" \"{patches_directory}\" \"{utilities_dir}\" \"{plugin_directory}\"".format(input_files=input_files, rwgt_cards=" ".join(["\"" + args.subfolder+ "/" "rwgt_" + str(key) + ".dat\"" for key in rd.keys()] ), card_name=args.cardname, card_dir=args.cardpath, patches_directory=patches_directory, utilities_dir=utilities_dir, plugin_directory=plugin_directory))
-        os.system("tar -zchvf \"{input_files}\" {rwgt_cards} \"{card_name}\" \"{card_dir}\" \"{patches_directory}\" \"{utilities_dir}\" \"{plugin_directory}\"".format(input_files=input_files, rwgt_cards=" ".join(["\"" + args.subfolder+ "/" "rwgt_" + str(key) + ".dat\"" for key in rd.keys()] ), card_name=args.cardname, card_dir=args.cardpath, patches_directory=patches_directory, utilities_dir=utilities_dir, plugin_directory=plugin_directory))
+    if any(i in ["rew", "all"] for i in args.task ):
+        #create subfolder to store exec, jid and rew card
+        mkdir(args.subfolder)
+        # Parsing reweight card
+        if not args.createreweight:
+            rd = build_rew_dict(args.cardpath + "/" + args.cardname + "_reweight_card.dat")
+        else:
+            operators = []
+            execfile("operators.py")
+            rd = build_rew_dict_scratch(operators, args.change_process, args.model)
+        # write the separate reweight point in a file
+        write_rew_dict(rd, args.subfolder, args.cardname, args.cardpath)
 
-    
-    mkdir("condor_log")
 
-    print(">> Submitting REWEIGHT condor job and wait")
+    if any(i in ["tar", "all"] for i in args.task ):
+        if os.path.isfile(input_files) or os.path.isdir(input_files): 
+            print("Tarball allready present. reusing")
+        else:
+            print("tar -zchvf \"{input_files}\" {rwgt_cards} \"{card_name}\" \"{card_dir}\" \"{patches_directory}\" \"{utilities_dir}\" \"{plugin_directory}\"".format(input_files=input_files, rwgt_cards=" ".join(["\"" + args.subfolder+ "/" "rwgt_" + str(key) + ".dat\"" for key in rd.keys()] ), card_name=args.cardname, card_dir=args.cardpath, patches_directory=patches_directory, utilities_dir=utilities_dir, plugin_directory=plugin_directory))
+            os.system("tar -zchvf \"{input_files}\" {rwgt_cards} \"{card_name}\" \"{card_dir}\" \"{patches_directory}\" \"{utilities_dir}\" \"{plugin_directory}\"".format(input_files=input_files, rwgt_cards=" ".join(["\"" + args.subfolder+ "/" "rwgt_" + str(key) + ".dat\"" for key in rd.keys()] ), card_name=args.cardname, card_dir=args.cardpath, patches_directory=patches_directory, utilities_dir=utilities_dir, plugin_directory=plugin_directory))
 
 
-    for key in rd.keys():
-        os.system("condor_submit \"{}\" | tail -n1 | rev | cut -d' ' -f1 | rev".format("rwgt_" + str(key) + ".jdl"))
+    if any(i in ["sub", "all"] for i in args.task ):
 
-    #colllecting jobs ids
-    out = subprocess.Popen(["condor_q", "-format",  "%d.", "ClusterId", "-format",  "%d\n",  "ProcId"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    stdout,stderr = out.communicate()
-    all_procs = stdout.split("\n")[:-1]
-    this_procs = all_procs[:len(rd.keys())] # the proc we submitted hopefully are the last ones
-    print(all_procs)
+        print(">> Submitting REWEIGHT condor job and wait")
 
-    while(any(i in all_procs for i in this_procs)):
+        mkdir("condor_log")
 
-        #querying again the condor scheduler
+        for key in rd.keys():
+            os.system("condor_submit \"{}\" | tail -n1 | rev | cut -d' ' -f1 | rev".format("rwgt_" + str(key) + ".jdl"))
+
+        #colllecting jobs ids
         out = subprocess.Popen(["condor_q", "-format",  "%d.", "ClusterId", "-format",  "%d\n",  "ProcId"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         stdout,stderr = out.communicate()
         all_procs = stdout.split("\n")[:-1]
+        this_procs = all_procs[:len(rd.keys())] # the proc we submitted hopefully are the last ones
         print(all_procs)
-        time.sleep(5)
-    
-    print("---> ALL Jobs Finished")
 
-    not_ok = []
-    #check for all the outputs
-    for key in rd.keys():
-        if not os.path.isfile("rwgt_" + str(key) + "_output.tar.xz"): 
-            print("[ERROR] No output found for rwgt_" + str(key) + "_output.tar.xz")
-            not_ok.append("rwgt_" + str(key))
-    
-    if len(not_ok) > 0: sys.exit(0)
-    
+        while(any(i in all_procs for i in this_procs)):
 
-    #create rwgt dir if not present
-    if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt"):
-        mkdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
-    
-    for key in rd.keys():
-        #os.system("rm rwgt_" + str(key) + ".sh")
-        #os.system("rm rwgt_" + str(key) + ".jdl")
+            #querying again the condor scheduler
+            out = subprocess.Popen(["condor_q", "-format",  "%d.", "ClusterId", "-format",  "%d\n",  "ProcId"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            stdout,stderr = out.communicate()
+            all_procs = stdout.split("\n")[:-1]
+            print(all_procs)
+            time.sleep(5)
+        
+        print("---> ALL Jobs Finished")
 
-        os.system("tar axvf rwgt_" + str(key) + "_output.tar.xz")
+    if any(i in ["mv", "all"] for i in args.task ):
 
+        not_ok = []
+        #check for all the outputs
+        for key in rd.keys():
+            if not os.path.isfile("rwgt_" + str(key) + "_output.tar.xz"): 
+                print("[ERROR] No output found for rwgt_" + str(key) + "_output.tar.xz")
+                not_ok.append("rwgt_" + str(key))
+        
+        if len(not_ok) > 0: sys.exit(0)
+        
+
+        #create rwgt dir if not present
         if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt"):
-            os.mkdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
-        os.system("mv rwgt/* " + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
-        os.system("rm -rf rwgt")
-        #os.system("rm rwgt_" + str(key) + "_output.tar.xz")
+            mkdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
+        
+        for key in rd.keys():
+            #os.system("rm rwgt_" + str(key) + ".sh")
+            #os.system("rm rwgt_" + str(key) + ".jdl")
 
-    # compiling reweight dirs
-    precompile_rwgt_dir(os.getcwd() + "/" + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent")
+            os.system("tar axvf rwgt_" + str(key) + "_output.tar.xz")
+
+            if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt"):
+                os.mkdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
+            os.system("mv rwgt/* " + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
+            os.system("rm -rf rwgt")
+            #os.system("rm rwgt_" + str(key) + "_output.tar.xz")
+
+        # compiling reweight dirs
+        precompile_rwgt_dir(os.getcwd() + "/" + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent")
 
     
     #############################################
 
-    print("---> Preparing final gridpack")
-    os.chdir(args.cardname + "/" + args.cardname + "_gridpack/work/process")
-    os.system("echo \"mg5_path = ../../mgbasedir\" >> ./madevent/Cards/me5_configuration.txt")
-    os.system("echo \"cluster_temp_path = None\" >> ./madevent/Cards/me5_configuration.txt")
-    os.system("echo \"run_mode = 0\" >> ./madevent/Cards/me5_configuration.txt")
+    if any(i in ["prepare", "all"] for i in args.task ):
 
-    os.chdir(WORKDIR)
+        print("---> Preparing final gridpack")
+        os.chdir(args.cardname + "/" + args.cardname + "_gridpack/work/process")
+        os.system("echo \"mg5_path = ../../mgbasedir\" >> ./madevent/Cards/me5_configuration.txt")
+        os.system("echo \"cluster_temp_path = None\" >> ./madevent/Cards/me5_configuration.txt")
+        os.system("echo \"run_mode = 0\" >> ./madevent/Cards/me5_configuration.txt")
+
+        os.chdir(WORKDIR)
 
 
 
-    if os.path.isdir("gridpack"):
-        os.syste("rm -rf gridpack")
+        if os.path.isdir("gridpack"):
+            os.syste("rm -rf gridpack")
 
-    mkdir("gridpack")
-    os.system("cp -r process gridpack/process")
-    os.system("cp -a {}/ gridpack/mgbasedir".format(MGBASEDIRORIG))
+        mkdir("gridpack")
+        os.system("cp -r process gridpack/process")
+        os.system("cp -a {}/ gridpack/mgbasedir".format(MGBASEDIRORIG))
+            
+
+        os.chdir("gridpack")
+        os.system("cp {}/runcmsgrid_LO.sh ./runcmsgrid.sh".format(PRODHOME))
+
+        os.system("sed -i s/SCRAM_ARCH_VERSION_REPLACE/{}/g runcmsgrid.sh".format(scram_arch))
+        os.system("sed -i s/CMSSW_VERSION_REPLACE/{}/g runcmsgrid.sh".format(cmssw_version))
         
+        pdfExtraArgs=""
 
-    os.chdir("gridpack")
-    os.system("cp {}/runcmsgrid_LO.sh ./runcmsgrid.sh".format(PRODHOME))
+        if args.is5FlavorScheme:
+            pdfExtraArgs+="--is5FlavorScheme"
 
-    os.system("sed -i s/SCRAM_ARCH_VERSION_REPLACE/{}/g runcmsgrid.sh".format(scram_arch))
-    os.system("sed -i s/CMSSW_VERSION_REPLACE/{}/g runcmsgrid.sh".format(cmssw_version))
+        out = subprocess.Popen(["python", "{}/getMG5_aMC_PDFInputs.py".format(script_dir),  "-f",  "systematics", "-c",  "2017", "{}".format(pdfExtraArgs)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        pdfSysArgs,stderr = out.communicate()
+
+        os.system("sed -i s/PDF_SETS_REPLACE/{pdfSysArgs}/g runcmsgrid.sh".format(pdfSysArgs=pdfSysArgs[:-1]))
+
+        #clean unneeded files for generation
+        os.system("{helpers_dir}/cleangridmore.sh".format(helpers_dir=helpers_dir))
+
+        # copy merge.pl from Utilities to allow merging LO events
+        os.chdir("{}/gridpack".format(WORKDIR))
+        os.system("cp {}/Utilities/merge.pl .".format(PRODHOME)) 
+
     
-    pdfExtraArgs=""
-
-    if args.is5FlavorScheme:
-      pdfExtraArgs+="--is5FlavorScheme"
-
-    out = subprocess.Popen(["python", "{}/getMG5_aMC_PDFInputs.py".format(script_dir),  "-f",  "systematics", "-c",  "2017", "{}".format(pdfExtraArgs)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    pdfSysArgs,stderr = out.communicate()
-
-    os.system("sed -i s/PDF_SETS_REPLACE/{pdfSysArgs}/g runcmsgrid.sh".format(pdfSysArgs=pdfSysArgs[:-1]))
-
-    #clean unneeded files for generation
-    os.system("{helpers_dir}/cleangridmore.sh".format(helpers_dir=helpers_dir))
-
-    # copy merge.pl from Utilities to allow merging LO events
-    os.chdir("{}/gridpack".format(WORKDIR))
-    os.system("cp {}/Utilities/merge.pl .".format(PRODHOME)) 
-
-
-    #Finishing the gridpack
-    make_tarball(WORKDIR, args.iscmsconnect, PRODHOME, CARDSDIR, args.cardname, scram_arch, cmssw_version)
+    if any(i in ["compress", "all"] for i in args.task ):
+        #Finishing the gridpack
+        make_tarball(WORKDIR, args.iscmsconnect, PRODHOME, CARDSDIR, args.cardname, scram_arch, cmssw_version)
 
     print("--> Done <---")
