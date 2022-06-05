@@ -400,8 +400,8 @@ if __name__ == "__main__":
         not_ok = []
         #check for all the outputs
         for key in rd.keys():
-            if not os.path.isfile("rwgt_" + str(key) + "_output.tar.xz"): 
-                print("[ERROR] No output found for rwgt_" + str(key) + "_output.tar.xz")
+            if not os.path.isfile("rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz"): 
+                print("[ERROR] No output found for rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
                 not_ok.append("rwgt_" + str(key))
         
         if len(not_ok) > 0: sys.exit(0)
@@ -415,7 +415,7 @@ if __name__ == "__main__":
             #os.system("rm rwgt_" + str(key) + ".sh")
             #os.system("rm rwgt_" + str(key) + ".jdl")
 
-            os.system("tar axvf rwgt_" + str(key) + "_output.tar.xz")
+            os.system("tar axvf rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
 
             if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt"):
                 os.mkdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
@@ -427,6 +427,13 @@ if __name__ == "__main__":
         precompile_rwgt_dir(os.getcwd() + "/" + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent")
 
     
+    if any(i in ["clean", "all"] for i in args.task ):
+
+        for key in rd.keys():
+            os.system("rm rwgt_" + str(key) + ".sh")
+            os.system("rm rwgt_" + str(key) + ".jdl")
+            os.system("rm rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
+
     #############################################
 
     if any(i in ["prepare", "all"] for i in args.task ):
