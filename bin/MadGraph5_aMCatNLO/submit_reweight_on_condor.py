@@ -7,6 +7,36 @@ import time
 from glob import glob
 from operator import itemgetter
 
+def build_reweight_card(rD, change_process, output):
+
+    mandatory = ["change helicity False\n"]
+    mandatory.append("change rwgt_dir rwgt\n")
+
+    if change_process != "": 
+        if not change_process.endswith('\n'): change_process += "\n"
+        mandatory.append(change_process)
+
+
+    f = open(output, "w")
+    for j in mandatory:
+        f.write(j)
+
+
+    f.write("\n")
+
+    for key in rD.keys():
+        
+        for line in rD[key]:
+            if line not in mandatory:
+                f.write(line)
+        
+        f.write("\n")
+    
+    f.close() 
+
+    return
+
+
 
 def precompile_rwgt_dir(madevent_path):
     print("Precompiling reweighting modules")
@@ -81,13 +111,12 @@ fi
 ls
 tar xfz "{input_files}"
 
-source Utilities/source_condor.sh
-
 mv condor_sub/{exec_name}.dat ${{condor_scratch}}/{card_name}/{card_name}_gridpack/work/process/madevent/Cards/reweight_card.dat
 
 echo "mg5_path = ${{condor_scratch}}/{card_name}/{card_name}_gridpack/work/MG5_aMC_v2_6_5" >> ${{condor_scratch}}/{card_name}/{card_name}_gridpack/work/process/madevent/Cards/me5_configuration.txt
-#echo "cluster_temp_path = None" >> ./madevent/Cards/me5_configuration.txt
-#echo "run_mode = 0" >> ./madevent/Cards/me5_configuration.txt 
+
+echo "cluster_temp_path = None" >> ${{condor_scratch}}/{card_name}/{card_name}_gridpack/work/process/madevent/Cards/me5_configuration.txt
+echo "run_mode = 0" >> ${{condor_scratch}}/{card_name}/{card_name}_gridpack/work/process/madevent/Cards/me5_configuration.txt 
 
 # Setup CMS framework
 export VO_CMS_SW_DIR=/cvmfs/cms.cern.ch
@@ -160,10 +189,10 @@ Queue 1
 
 def write_rew_dict(rew_dict, output_folder, cardname, cardpath):
 
+    if not output_folder[-1] == "/": output_folder += "/"
+
     for key in rew_dict.keys():
-        if not output_folder[-1] == "/": output_folder += "/"
-
-
+        
         # writing reweight card
         f = open(output_folder + "rwgt_{}_{}.dat".format(key, cardname), "w")
         for line in rew_dict[key]:
@@ -499,5 +528,8 @@ if __name__ == "__main__":
     if any(i in ["compress", "all"] for i in args.task ):
         #Finishing the gridpack
         make_tarball(WORKDIR, args.iscmsconnect, PRODHOME, CARDSDIR, args.cardname, scram_arch, cmssw_version)
+
+    if any(i in ["rwgtcard", "all"] for i in args.task ):
+        build_reweight_card(rd, args.change_process, args.cardpath + "/" + args.cardname + "_reweight_card.dat")
 
     print("--> Done <---")
