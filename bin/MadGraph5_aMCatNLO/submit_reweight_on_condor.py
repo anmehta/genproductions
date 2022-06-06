@@ -48,7 +48,7 @@ def make_tarball(WORKDIR, iscmsconnect, PRODHOME, CARDSDIR, CARDNAME, scram_arch
     ### include merge.pl script for LO event merging 
     if os.path.isfile("merge.pl"):
         EXTRA_TAR_ARGS+="merge.pl "
-    os.system("XZ_OPT=\"$XZ_OPT\" tar -cJpsf {PRODHOME}/{CARDNAME}_{scram_arch}_{cmssw_version}_tarball.tar.xz mgbasedir process runcmsgrid.sh InputCards {EXTRA_TAR_ARGS}".format( PRODHOME=PRODHOME, CARDNAME=CARDNAME, scram_arch=scram_arch, cmssw_version=cmssw_version, EXTRA_TAR_ARGS=EXTRA_TAR_ARGS ))
+    os.system("XZ_OPT=\"$XZ_OPT\" tar -cJpsvf {PRODHOME}/{CARDNAME}_{scram_arch}_{cmssw_version}_tarball.tar.xz mgbasedir process runcmsgrid.sh InputCards {EXTRA_TAR_ARGS}".format( PRODHOME=PRODHOME, CARDNAME=CARDNAME, scram_arch=scram_arch, cmssw_version=cmssw_version, EXTRA_TAR_ARGS=EXTRA_TAR_ARGS ))
     print("Gridpack created successfully at {PRODHOME}/{CARDNAME}_{scram_arch}_{cmssw_version}_tarball.tar.xz".format(PRODHOME=PRODHOME, CARDNAME=CARDNAME, scram_arch=scram_arch, cmssw_version=cmssw_version))
     print("End of job")
 
@@ -80,6 +80,8 @@ fi
 # Untar input files
 ls
 tar xfz "{input_files}"
+
+source Utilities/source_condor.sh
 
 mv condor_sub/{exec_name}.dat ${{condor_scratch}}/{card_name}/{card_name}_gridpack/work/process/madevent/Cards/reweight_card.dat
 
@@ -227,8 +229,8 @@ def build_rew_dict_scratch(operators, change_process , model):
                     tag = sortedsel[i][1]
                     if val == -1: tag += "m1"
                     rwgt_points.append("launch --rwgt_name={}\n".format(tag))
-                    rwgt_points.append("    set SMEFT {} {}\n".format(sortedsel[i][0], val))
-                    rwgt_points.append("    set SMEFT {} 0\n".format(sortedsel[j][0]))
+                    rwgt_points.append("    set {} {} {}\n".format(sortedsel[i][2], sortedsel[i][3], val))
+                    rwgt_points.append("    set {} {} 0\n".format(sortedsel[j][2], sortedsel[j][3]))
                     rwgt_points.append("\n")
 
                 done_singles.append(sortedsel[i][0])
@@ -240,8 +242,8 @@ def build_rew_dict_scratch(operators, change_process , model):
                     tag = sortedsel[j][1]
                     if val == -1: tag += "m1"
                     rwgt_points.append("launch --rwgt_name={}\n".format(tag))
-                    rwgt_points.append("    set SMEFT {} {}\n".format(sortedsel[j][0], val))
-                    rwgt_points.append("    set SMEFT {} 0\n".format(sortedsel[i][0]))
+                    rwgt_points.append("    set {} {} {}\n".format(sortedsel[j][2], sortedsel[j][3], val))
+                    rwgt_points.append("    set {} {} 0\n".format(sortedsel[i][2], sortedsel[i][3]))
                     rwgt_points.append("\n")
 
                 done_singles.append(sortedsel[j][0])
@@ -309,9 +311,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Command line parser')
     parser.add_argument('-cn', '--cardname',                    dest='cardname',            help='The name of the cards, <name>_proc_card.dat', required = True)
     parser.add_argument('-cp', '--cardpath',                    dest='cardpath',            help='The path to the cards directory', required = True)
-    parser.add_argument('-t', '--task',                        dest='task',               help='Tasks to be executed (separated by a space). Default is all', required = False, nargs = "+", default="all")
+    parser.add_argument('-t', '--task',                         dest='task',                help='Tasks to be executed (separated by a space). Default is all. Can choose between: rew (only write rew cards and execs),\n tar (Create tarball of input gridpack),\n sub (submit all jobs),\n mv (move all results once jobs are finished in the right position),\n clean (clean all files created that are not useful),\n prepare (prepare final gridpack, set of sed and paths),\n compress (create the final gridpack)\n', required = False, nargs = "+", default=["all"])
     parser.add_argument('-sf', '--subfolder',                   dest='subfolder',           help='The path to the folder where .jid, exec and reweight cards will be saved', required = False, default="condor_sub")
     parser.add_argument('-is5f', '--is5FlavorScheme',           dest='is5FlavorScheme',     help='Is the gridpack intended for 5fs? Default is true', required = False, default=True, action="store_false")
+    parser.add_argument('-scram', '--scramarch',                dest='scramarch',           help='Scram arch version required. Default is slc7_amd64_gcc700', required = False, default="slc7_amd64_gcc700", type=str)
+    parser.add_argument('-cmssw', '--cmssw',                    dest='cmssw',               help='CMSSW version required. Default is CMSSW_10_6_19', required = False, default="CMSSW_10_6_19", type=str)
     parser.add_argument('-iscmsc', '--iscmsconnect',            dest='iscmsconnect',        help='Are you working on cmsconnect? Default is true', required = False, default=True, action="store_false")
     parser.add_argument('-cr', '--createreweight',              dest='createreweight',      help='File operator.py will be imported and restriction cards created', required = False, default=False, action="store_true")
     parser.add_argument('-change_process', '--change_process',  dest='change_process',      help='If args.cr is specified, add this to change process in reweight card', required = False, default="", type=str)
@@ -336,12 +340,25 @@ if __name__ == "__main__":
     WORKDIR = os.path.join(PRODHOME, args.cardname, args.cardname+"_gridpack", "work") 
     genp_name = PRODHOME.split("/bin/MadGraph5_aMCatNLO")[0].split("/")[-1]
     script_dir=os.path.join(PRODHOME.split(genp_name)[0], "genproductions/", "Utilities/scripts")
-    cmssw_version="CMSSW_10_6_19"
-    scram_arch="slc7_amd64_gcc700"
+    cmssw_version=args.cmssw
+    scram_arch=args.scramarch
     MGBASEDIRORIG = "MG5_aMC_v2_6_5"
     patches_directory="./patches"
     utilities_dir="./Utilities"
     plugin_directory="./PLUGIN"
+
+
+    ########### LOGGING GRIDPACK INFOS ############
+    print("----> BEGIN <------")
+    print("Production home: " + PRODHOME)
+    print("Card Dir: " + CARDSDIR)
+    print("Helpers Dir: " + helpers_dir)
+    print("Working Dir: " + WORKDIR)
+    print("CMSSW version: " + cmssw_version)
+    print("SCRAM ARCH version: " + scram_arch)
+    print("MADGRAPH Dir: " + MGBASEDIRORIG)
+    
+
 
     input_files="input_reweight_{}.tar.gz".format(args.cardname)
 
@@ -366,7 +383,7 @@ if __name__ == "__main__":
             print("Tarball allready present. reusing")
         else:
             print("tar -zchvf \"{input_files}\" {rwgt_cards} \"{card_name}\" \"{card_dir}\" \"{patches_directory}\" \"{utilities_dir}\" \"{plugin_directory}\"".format(input_files=input_files, rwgt_cards=" ".join(["\"" + args.subfolder+ "/" "rwgt_" + str(key) + ".dat\"" for key in rd.keys()] ), card_name=args.cardname, card_dir=args.cardpath, patches_directory=patches_directory, utilities_dir=utilities_dir, plugin_directory=plugin_directory))
-            os.system("tar -zchvf \"{input_files}\" {rwgt_cards} \"{card_name}\" \"{card_dir}\" \"{patches_directory}\" \"{utilities_dir}\" \"{plugin_directory}\"".format(input_files=input_files, rwgt_cards=" ".join(["\"" + args.subfolder+ "/" "rwgt_" + str(key) + ".dat\"" for key in rd.keys()] ), card_name=args.cardname, card_dir=args.cardpath, patches_directory=patches_directory, utilities_dir=utilities_dir, plugin_directory=plugin_directory))
+            os.system("tar -zchvf \"{input_files}\" {rwgt_cards} \"{card_name}\" \"{card_dir}\" \"{patches_directory}\" \"{utilities_dir}\" \"{plugin_directory}\"".format(input_files=input_files, rwgt_cards=" ".join(["\"" + args.subfolder+ "/" "rwgt_" + str(key) + "_" + args.cardname + ".dat\"" for key in rd.keys()] ), card_name=args.cardname, card_dir=args.cardpath, patches_directory=patches_directory, utilities_dir=utilities_dir, plugin_directory=plugin_directory))
 
 
     if any(i in ["sub", "all"] for i in args.task ):
@@ -376,7 +393,7 @@ if __name__ == "__main__":
         mkdir("condor_log")
 
         for key in rd.keys():
-            os.system("condor_submit \"{}\" | tail -n1 | rev | cut -d' ' -f1 | rev".format("rwgt_" + str(key) + ".jdl"))
+            os.system("condor_submit \"{}\" | tail -n1 | rev | cut -d' ' -f1 | rev".format("rwgt_" + str(key) + "_" + args.cardname + ".jdl"))
 
         #colllecting jobs ids
         out = subprocess.Popen(["condor_q", "-format",  "%d.", "ClusterId", "-format",  "%d\n",  "ProcId"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -413,27 +430,25 @@ if __name__ == "__main__":
             mkdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
         
         for key in rd.keys():
-            #os.system("rm rwgt_" + str(key) + ".sh")
-            #os.system("rm rwgt_" + str(key) + ".jdl")
-
             os.system("tar axvf rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
 
             if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt"):
                 os.mkdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
             os.system("mv rwgt/* " + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
             os.system("rm -rf rwgt")
-            #os.system("rm rwgt_" + str(key) + "_output.tar.xz")
 
         # compiling reweight dirs
         precompile_rwgt_dir(os.getcwd() + "/" + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent")
 
     
-    if any(i in ["clean", "all"] for i in args.task ):
+    if any(i in ["clean"] for i in args.task ):
 
         for key in rd.keys():
-            os.system("rm rwgt_" + str(key) + ".sh")
-            os.system("rm rwgt_" + str(key) + ".jdl")
+            os.system("rm rwgt_" + str(key)+ "_" + args.cardname + ".sh")
+            os.system("rm rwgt_" + str(key)+ "_" + args.cardname + ".jdl")
+            os.system("rm rwgt_" + str(key)+ "_" + args.cardname + ".log")
             os.system("rm rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
+            os.system("rm -rf " + args.subfolder)
 
     #############################################
 
