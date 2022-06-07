@@ -95,7 +95,7 @@ def mkdir(path):
     return 
 
 
-def write_sh(exec_name, card_name, card_dir, output_folder):
+def write_sh(exec_name, card_name, card_dir, sub_folder, output_folder):
     l = """#! /bin/bash
 # Condor scratch dir
 condor_scratch=$(pwd)
@@ -111,7 +111,8 @@ fi
 ls
 tar xfz "{input_files}"
 
-mv condor_sub/{exec_name}.dat ${{condor_scratch}}/{card_name}/{card_name}_gridpack/work/process/madevent/Cards/reweight_card.dat
+cp {sub_folder}/{exec_name}.dat ${{condor_scratch}}/{card_name}/{card_name}_gridpack/work/process/madevent/Cards/reweight_card.dat
+cp {sub_folder}/{exec_name}.dat ${{condor_scratch}}/{card_dir}/{card_name}_reweight_card.dat
 
 echo "mg5_path = ${{condor_scratch}}/{card_name}/{card_name}_gridpack/work/MG5_aMC_v2_6_5" >> ${{condor_scratch}}/{card_name}/{card_name}_gridpack/work/process/madevent/Cards/me5_configuration.txt
 
@@ -151,7 +152,7 @@ else
     echo "The xrdcp command below failed:"
     echo "xrdcp -f ${{condor_scratch}}$sandbox_output root://stash.osgconnect.net:1094/${{stash_tmpdir##/stash}}/$sandbox_output"
 fi
-""".format(sandbox_output="{}_output.tar.xz".format(exec_name) , input_files="input_reweight_{}.tar.gz".format(card_name), card_name=card_name, card_dir=card_dir, exec_name=exec_name)
+""".format(sub_folder=sub_folder, sandbox_output="{}_output.tar.xz".format(exec_name) , input_files="input_reweight_{}.tar.gz".format(card_name), card_name=card_name, card_dir=card_dir, exec_name=exec_name)
 
     f = open(output_folder + exec_name + ".sh", "w")
     f.write(l)
@@ -187,7 +188,7 @@ Queue 1
     f.close()
     return 
 
-def write_rew_dict(rew_dict, output_folder, cardname, cardpath):
+def write_rew_dict(rew_dict, output_folder, cardname, cardpath, sub_folder):
 
     if not output_folder[-1] == "/": output_folder += "/"
 
@@ -203,7 +204,7 @@ def write_rew_dict(rew_dict, output_folder, cardname, cardpath):
         write_jdl("rwgt_{}_{}".format(key, cardname), cardname, cardpath, output_folder="")
 
         #writing .sh
-        write_sh("rwgt_{}_{}".format(key, cardname), cardname, cardpath, output_folder="")
+        write_sh("rwgt_{}_{}".format(key, cardname), cardname, cardpath, sub_folder, output_folder="")
 
     return 
 
@@ -214,9 +215,12 @@ def build_rew_dict_scratch(operators, change_process , model):
     mandatory = ["change helicity False\n"]
     mandatory.append("change rwgt_dir rwgt\n")
 
-    if change_process != "": 
-        if not change_process.endswith('\n'): change_process += "\n"
-        mandatory.append(change_process)
+    change_process = change_process.split(",")
+
+    if len(change_process) > 0: 
+        for i in range(len(change_process)):
+            change_process[i] += "\n"
+        mandatory += change_process
 
     mandatory.append("\n")
     
@@ -404,7 +408,7 @@ if __name__ == "__main__":
     
     if any(i in ["rew", "all"] for i in args.task ):
         # write the separate reweight point in a file
-        write_rew_dict(rd, args.subfolder, args.cardname, args.cardpath)
+        write_rew_dict(rd, args.subfolder, args.cardname, args.cardpath, args.subfolder)
 
 
     if any(i in ["tar", "all"] for i in args.task ):
@@ -442,24 +446,30 @@ if __name__ == "__main__":
         
         print("---> ALL Jobs Finished")
 
-    if any(i in ["mv", "all"] for i in args.task ):
+    if any(i in ["mv", "check", "all"] for i in args.task ):
 
         not_ok = []
         #check for all the outputs
         for key in rd.keys():
+            os.system("ls rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
             if not os.path.isfile("rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz"): 
                 print("[ERROR] No output found for rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
                 not_ok.append("rwgt_" + str(key))
         
-        if len(not_ok) > 0: sys.exit(0)
-        
+        if len(not_ok) > 0: 
+            print("----> Missing Summary")
+            print(not_ok)
+            sys.exit(0)
+
+    if any(i in ["mv", "all"] for i in args.task ):        
 
         #create rwgt dir if not present
         if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt"):
             mkdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
         
         for key in rd.keys():
-            os.system("tar axvf rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
+            print("--> Processing reweight rwgt_" + str(key))
+            os.system("tar axf rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
 
             if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt"):
                 os.mkdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")

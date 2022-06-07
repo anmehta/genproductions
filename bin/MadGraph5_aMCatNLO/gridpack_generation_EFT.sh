@@ -672,7 +672,6 @@ make_gridpack () {
       echo "----> starting reweighting!! "
 
       echo "cleaning temporary output"
-      echo $PWD
       
       # It should be here after codegen
       if [ ! -d process ]; then 
@@ -705,6 +704,12 @@ make_gridpack () {
           extract_width $isnlo $WORKDIR $CARDSDIR ${name}
       fi
       
+      if [ -n "$REWEIGHT_ON_CONDOR" ]; then 
+         if [ $REWEIGHT_ON_CONDOR ]; then 
+            echo "Reweighting on condor gone ok, exiting" 
+            exit 0
+         fi
+      fi 
       #prepare madspin grids if necessary
       if [ -e $CARDSDIR/${name}_madspin_card.dat ]; then
         echo "import $WORKDIR/unweighted_events.lhe.gz" > madspinrun.dat
@@ -928,6 +933,13 @@ if [ "${name}" != "interactive" ]; then
     fi
     # Re-enable set -e
     set -e
+
+    if [ -n "$REWEIGHT_ON_CONDOR" ]; then 
+      if [ $REWEIGHT_ON_CONDOR ]; then 
+        echo "Reweighting on condor gone ok, exiting" 
+        exit 0
+      fi
+    fi 
 
     echo "Saving log file(s)"
     cd $WORKDIR/gridpack
