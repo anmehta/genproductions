@@ -12,13 +12,20 @@ def build_reweight_card(rD, change_process, output):
     mandatory = ["change helicity False\n"]
     mandatory.append("change rwgt_dir rwgt\n")
 
-    if change_process != "": 
-        if not change_process.endswith('\n'): change_process += "\n"
-        mandatory.append(change_process)
+    change_process = change_process.split(",")
+
+    if len(change_process) > 0: 
+        for i in range(len(change_process)):
+            change_process[i] += "\n"
+        mandatory += change_process
+
+    mandatory.append("\n")
 
 
+    os.system("ls " + output)
     f = open(output, "w")
-    for j in mandatory:
+
+    for j in mandatory: 
         f.write(j)
 
 
@@ -70,6 +77,8 @@ def make_tarball(WORKDIR, iscmsconnect, PRODHOME, CARDSDIR, CARDNAME, scram_arch
     mkdir("InputCards")
 
     os.system("cp {CARDSDIR}/{CARDNAME}*.* InputCards".format(CARDSDIR=CARDSDIR,CARDNAME=CARDNAME ))
+    if os.path.isfile("InputCards/{CARDNAME}_reweight_card.dat".format(CARDNAME=CARDNAME)):
+        os.system("InputCards/{CARDNAME}_reweight_card.dat process/madevent/Cards/reweight_card.dat".format(CARDNAME=CARDNAME))
 
     EXTRA_TAR_ARGS=""
     if os.path.isfile("{CARDSDIR}/{CARDNAME}_externaltarball.dat".format(CARDSDIR=CARDSDIR,CARDNAME=CARDNAME )):
@@ -238,6 +247,7 @@ def build_rew_dict_scratch(operators, change_process , model):
     for i in range (len (sortedsel)):
         for j in range (i+1, len (sortedsel)):
             tag = sortedsel[i][1] + '_' + sortedsel[j][1] 
+            ov_tag = sortedsel[i][1] + '_' + sortedsel[j][1] 
             
             rwgt_points = []
             rwgt_points += mandatory
@@ -281,7 +291,8 @@ def build_rew_dict_scratch(operators, change_process , model):
 
                 done_singles.append(sortedsel[j][0])
 
-            rew_d[idx] = copy.copy(rwgt_points)
+            rew_d[ov_tag] = copy.copy(rwgt_points)
+            #rew_d[idx] = copy.copy(rwgt_points)
 
             idx += 1
 
@@ -305,12 +316,19 @@ def build_rew_dict(rew_card):
 
     reweight_template = contents[:idx+1]
 
-    rew_d[0] = reweight_template
+    tag = ""
+    for i in contents:
+        if "change rwgt_dir rwgt/" in i: 
+            tag = i.split("change rwgt_dir rwgt/")[1].split("\n")[0]
+
+    #rew_d[idx] = reweight_template
+    rew_d[tag] = reweight_template
 
     contents = contents[idx+1:]
     idx = 1
 
     reweight_template_copy = copy.copy(reweight_template)
+    tag = ""
     for line in contents:
         if "launch" not in line:
             if "change model" in line:
@@ -326,14 +344,17 @@ def build_rew_dict(rew_card):
             if "change rwgt_dir" in line:
                 for id_, line_ in enumerate(reweight_template_copy):
                     if "change rwgt_dir" in line_ and line_ != "change rwgt_dir rwgt\n":
+                        tag = line.split("/")[-1].split("\n")[0]
                         nf = "change rwgt_dir rwgt/" + line.split("/")[-1]
                         reweight_template_copy[id_] = nf 
 
         else: 
             reweight_template_copy[-1] = line 
-            rew_d[idx] =  copy.copy(reweight_template_copy)
+            #rew_d[idx] =  copy.copy(reweight_template_copy)
+            rew_d[tag] =  copy.copy(reweight_template_copy)
             idx += 1
             reweight_template_copy = copy.copy(reweight_template)
+            tag = ""
 
     return rew_d
 
@@ -363,7 +384,7 @@ if __name__ == "__main__":
     if not os.path.isdir(args.cardname): sys.exit("[ERROR] Path {} does not exist".format(args.cardname))
     if not os.path.isfile(args.cardpath + "/" + args.cardname + "_proc_card.dat"): sys.exit("[ERROR] proc card does not exist in {}".format(args.cardpath))
     if not os.path.isfile(args.cardpath + "/" + args.cardname + "_run_card.dat"): sys.exit("[ERROR]  run card does not exist in {}".format(args.cardpath))
-    if not args.change_process:
+    if not args.createreweight:
         if not os.path.isfile(args.cardpath + "/" + args.cardname + "_reweight_card.dat"): sys.exit("[ERROR]  reweight card does not exist in {}".format(args.cardpath))
     
 
@@ -409,8 +430,7 @@ if __name__ == "__main__":
     if any(i in ["rew", "all"] for i in args.task ):
         # write the separate reweight point in a file
         write_rew_dict(rd, args.subfolder, args.cardname, args.cardpath, args.subfolder)
-
-
+    
     if any(i in ["tar", "all"] for i in args.task ):
         if os.path.isfile(input_files) or os.path.isdir(input_files): 
             print("Tarball allready present. reusing")
@@ -435,31 +455,84 @@ if __name__ == "__main__":
         this_procs = all_procs[:len(rd.keys())] # the proc we submitted hopefully are the last ones
         print(all_procs)
 
-        while(any(i in all_procs for i in this_procs)):
+        if "all" in args.task:
 
-            #querying again the condor scheduler
-            out = subprocess.Popen(["condor_q", "-format",  "%d.", "ClusterId", "-format",  "%d\n",  "ProcId"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            stdout,stderr = out.communicate()
-            all_procs = stdout.split("\n")[:-1]
-            print(all_procs)
-            time.sleep(5)
+            while(any(i in all_procs for i in this_procs)):
+
+                #querying again the condor scheduler
+                out = subprocess.Popen(["condor_q", "-format",  "%d.", "ClusterId", "-format",  "%d\n",  "ProcId"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                stdout,stderr = out.communicate()
+                all_procs = stdout.split("\n")[:-1]
+                print(all_procs)
+                time.sleep(5)
         
         print("---> ALL Jobs Finished")
 
-    if any(i in ["mv", "check", "all"] for i in args.task ):
+    # if any(i in ["mv", "check", "all"] for i in args.task ):
+
+    #     not_ok = []
+    #     #check for all the outputs
+    #     for key in rd.keys():
+    #         if not os.path.isfile("rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz"): 
+    #             print("[ERROR] No output found for rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
+    #             not_ok.append("rwgt_" + str(key))
+        
+    #     if len(not_ok) > 0: 
+    #         print("----> Missing Summary")
+    #         print(not_ok)
+    #         sys.exit(0)
+
+    if any(i in ["unpack", "check", "resub"] for i in args.task ):
+
+        mkdir("tmp_{}".format(args.cardname))
+        all_outputs = glob("rwgt_*_" + args.cardname + "_output.tar.xz")
+
+        for o in all_outputs:
+            print("--> Processing reweight " + o)
+            ops = o.split("rwgt_")[1].split("_" + args.cardname + "_output.tar.xz")[0]
+            # check if we already unpacked this directory 
+            if os.path.isdir("tmp_{}".format(args.cardname) + "/rwgt_" + ops): continue 
+
+            # if not present we unpack
+            os.system("tar axf " + o)
+            os.system("mv rwgt/* tmp_{}".format(args.cardname))
+            os.system("rm -rf rwgt")
+
+    if any(i in ["check", "resub"] for i in args.task ):
 
         not_ok = []
-        #check for all the outputs
         for key in rd.keys():
-            os.system("ls rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
-            if not os.path.isfile("rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz"): 
-                print("[ERROR] No output found for rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
-                not_ok.append("rwgt_" + str(key))
+            if not os.path.isdir("tmp_{}".format(args.cardname) + "/rwgt_" + key):
+                print("-> Missing " + key)
+                not_ok.append(key)
+            else:
+                if not os.path.isdir("tmp_{}".format(args.cardname) + "/rwgt_" + key + "/rw_me"):
+                    print("-> Missing base dir rw_me" + key)
+                    not_ok.append(key)
+                if not os.path.isdir("tmp_{}".format(args.cardname) + "/rwgt_" + key + "/rw_me_second"):
+                    print("-> Missing second dir rw_me_second" + key)
+                    not_ok.append(key)
+
+
+    if any(i in ["resub"] for i in args.task ):
+
+        out = subprocess.Popen(["condor_q"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        stdout,stderr = out.communicate()
+        stdout = stdout.split("\n")
+
+        for k in not_ok:
+
+            for line in stdout:
+                if "rwgt_" + k + "_" + args.cardname + ".sh": 
+                    print("---> Reweight point " + k + " is running on condor with id " + str(line.split(" ")[0]))
+                    continue
+            
+            print("Deleting output --> {}".format(k))
+            if os.path.isdir("rwgt_{}_".format(k) + args.cardname + "_output.tar.xz"):
+                os.system("rm rwgt_{}_".format(k) + args.cardname + "_output.tar.xz")
+            print("Resubmitting --> {}".format(k))
+            os.system("condor_submit \"{}\" | tail -n1 | rev | cut -d' ' -f1 | rev".format("rwgt_" + str(k) + "_" + args.cardname + ".jdl"))
         
-        if len(not_ok) > 0: 
-            print("----> Missing Summary")
-            print(not_ok)
-            sys.exit(0)
 
     if any(i in ["mv", "all"] for i in args.task ):        
 
@@ -467,27 +540,27 @@ if __name__ == "__main__":
         if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt"):
             mkdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
         
+        #check if we unpacked before the end of jobs to check
+        is_checked = os.path.isdir("tmp_{}".format(args.cardname))
+
+        #create main rwgt directory if not present in the gridpack directory 
+        if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt"):
+            os.mkdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
+
         for key in rd.keys():
             print("--> Processing reweight rwgt_" + str(key))
-            os.system("tar axf rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
+            if is_checked and os.path.isdir("tmp_{}".format(args.cardname) + "/rwgt_" + key): 
+                if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt/rwgt_{} ".format(args.cardname, key) ):
+                    os.system("cp -r tmp_{}/rwgt_{} ".format(args.cardname, key) + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
 
-            if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt"):
-                os.mkdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
-            os.system("mv rwgt/* " + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
-            os.system("rm -rf rwgt")
+            else:
+                os.system("tar axf rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
+                os.system("mv rwgt/* " + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
+                os.system("rm -rf rwgt")
 
         # compiling reweight dirs
         precompile_rwgt_dir(os.getcwd() + "/" + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent")
 
-    
-    if any(i in ["clean"] for i in args.task ):
-
-        for key in rd.keys():
-            os.system("rm rwgt_" + str(key)+ "_" + args.cardname + ".sh")
-            os.system("rm rwgt_" + str(key)+ "_" + args.cardname + ".jdl")
-            os.system("rm rwgt_" + str(key)+ "_" + args.cardname + ".log")
-            os.system("rm rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
-            os.system("rm -rf " + args.subfolder)
 
     #############################################
 
@@ -504,7 +577,7 @@ if __name__ == "__main__":
 
 
         if os.path.isdir("gridpack"):
-            os.syste("rm -rf gridpack")
+            os.system("rm -rf gridpack")
 
         mkdir("gridpack")
         os.system("cp -r process gridpack/process")
@@ -534,12 +607,25 @@ if __name__ == "__main__":
         os.chdir("{}/gridpack".format(WORKDIR))
         os.system("cp {}/Utilities/merge.pl .".format(PRODHOME)) 
 
+
+    if any(i in ["rwgtcard"] for i in args.task ):
+        os.chdir(PRODHOME)
+        build_reweight_card(rd, args.change_process, args.cardpath + "/" + args.cardname + "_reweight_card.dat")
+
     
     if any(i in ["compress", "all"] for i in args.task ):
         #Finishing the gridpack
+        os.chdir("{}/gridpack".format(WORKDIR))
         make_tarball(WORKDIR, args.iscmsconnect, PRODHOME, CARDSDIR, args.cardname, scram_arch, cmssw_version)
 
-    if any(i in ["rwgtcard", "all"] for i in args.task ):
-        build_reweight_card(rd, args.change_process, args.cardpath + "/" + args.cardname + "_reweight_card.dat")
+
+    if any(i in ["clean"] for i in args.task ):
+
+        for key in rd.keys():
+            os.system("rm rwgt_" + str(key)+ "_" + args.cardname + ".sh")
+            os.system("rm rwgt_" + str(key)+ "_" + args.cardname + ".jdl")
+            os.system("rm rwgt_" + str(key)+ "_" + args.cardname + ".log")
+            os.system("rm rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
+            os.system("rm -rf " + args.subfolder)
 
     print("--> Done <---")
