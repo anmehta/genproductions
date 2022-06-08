@@ -1,4 +1,4 @@
-import os 
+import os, stat
 import sys
 import argparse
 import copy
@@ -50,15 +50,39 @@ def precompile_rwgt_dir(madevent_path):
 
     orig = os.getcwd()
     os.chdir(madevent_path)
-    
-    for file in glob("rwgt/*/*/SubProcesses/P*"):
-        print ("Compiling subprocess " + file)
-        os.chdir(file)
-        for i in [2, 3]:
-            os.environ['MENUM'] = str(i)
-            out = os.system("MENUM={i} make matrix{i}py.so >& /dev/null".format(i=i))   
-            print("Library MENUM={} compiled with status {}".format(i, out))
-        os.chdir(madevent_path)
+
+    # Need to make an external executable 
+    # because we cannot do cmsenv from within a python script
+    # (you can but won't change anything and it will not find f2py2)
+    f = open("precompile.sh", "w")
+    f.write("eval `scram runtime -sh`\n")
+    f.write("echo  \"sono qui\" \n")
+    f.write("init_path=`pwd`\n")
+    f.write("for rw_dir in $(ls -d rwgt/*); do\n")
+    f.write("   cd $rw_dir\n")
+    f.write("   for file in $(ls -d */SubProcesses/P*); do\n")
+    f.write("       echo \"Compiling subprocess $(basename $file)\"\n")
+    f.write("       cd $file\n")
+    f.write("       for i in 2 3; do\n")
+    f.write("           MENUM=$i make matrix${i}py.so >& /dev/null\n")
+    f.write("           echo \"Library MENUM=$i compiled with status $?\"\n")
+    f.write("       done\n")
+    f.write("       cd -\n")
+    f.write("    done\n")
+    f.write("    cd $init_path\n")
+    f.write("done\n")
+    f.close()
+
+    #make file executable
+    st = os.stat("precompile.sh")
+    os.chmod("precompile.sh", st.st_mode | stat.S_IEXEC)
+
+    print("RUN")
+    # run it
+    os.system("./precompile.sh")
+
+
+    os.system("rm precompile.sh")
     
     os.chdir(orig)
     
@@ -558,6 +582,7 @@ if __name__ == "__main__":
                 os.system("mv rwgt/* " + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
                 os.system("rm -rf rwgt")
 
+    if any(i in ["precompile", "mv", "all"] for i in args.task ): 
         # compiling reweight dirs
         precompile_rwgt_dir(os.getcwd() + "/" + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent")
 
