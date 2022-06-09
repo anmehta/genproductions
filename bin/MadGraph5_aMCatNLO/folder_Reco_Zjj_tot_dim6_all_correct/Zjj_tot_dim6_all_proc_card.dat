@@ -1,0 +1,29 @@
+#************************************************************
+#*                     MadGraph5_aMC@NLO                    *
+#*                                                          *
+#*                *                       *                 *
+#*                  *        * *        *                   *
+#*                    * * * * 5 * * * *                     *
+#*                  *        * *        *                   *
+#*                *                       *                 *
+#*                                                          *
+#*                                                          *
+#*         VERSION 2.6.5                 2018-02-03         *
+#*                                                          *
+#*    The MadGraph5_aMC@NLO Development Team - Find us at   *
+#*    https://server06.fynu.ucl.ac.be/projects/madgraph     *
+#*                                                          *
+#************************************************************
+#*                                                          *
+#*               Command File for MadGraph5_aMC@NLO         *
+#*                                                          *
+#*     run as ./bin/mg5_aMC  filename                       *
+#*                                                          *
+#************************************************************
+import model SMEFTsim_U35_MwScheme_UFO-cW_cHbox_cHDD_cHG_cHW_cHB_cHWB_cdHRe_cdWRe_cdBRe_cHl1_cHl3_cHe_cHq1_cHq3_cHu_cHd_cll1_cqq1_cqq11_cqq3_cqq31_clq1_clq3_cuu_cuu1_cdd_cdd1_ceu_ced_cud1_cud8_clu_cld_cqe_cqu1_cqu8_cqd1_cqd8_massless
+define p = g u c d s b u~ c~ d~ s~ b~
+define j = p
+define l+ = e+ mu+ ta+
+define l- = e- mu- ta-
+generate p p > l+ l- j j SMHLOOP=0 QED=99 QCD=0 NP=1
+output Zjj_tot_dim6_all -nojpeg
