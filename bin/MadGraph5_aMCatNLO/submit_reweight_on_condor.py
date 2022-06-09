@@ -21,9 +21,7 @@ def build_reweight_card(rD, change_process, output):
 
     mandatory.append("\n")
 
-
-    os.system("ls " + output)
-    f = open(output, "w")
+    f = open(output[0], "w")
 
     for j in mandatory: 
         f.write(j)
@@ -40,6 +38,9 @@ def build_reweight_card(rD, change_process, output):
         f.write("\n")
     
     f.close() 
+
+    for path in output[1:]: 
+        os.system("cp {} {}".format(output[0], path))
 
     return
 
@@ -89,6 +90,8 @@ def precompile_rwgt_dir(madevent_path):
     return 
 
 def make_tarball(WORKDIR, iscmsconnect, PRODHOME, CARDSDIR, CARDNAME, scram_arch, cmssw_version):
+
+    # NEEDS CMSENV
     print("---> Creating tarball")
     os.chdir("{WORKDIR}/gridpack".format(WORKDIR=WORKDIR))
 
@@ -267,7 +270,10 @@ def build_rew_dict_scratch(operators, change_process , model):
 
     done_singles = []
 
-    idx = 0
+    counter_mix = 0
+    counter_single = 0
+
+    idx = 1
     for i in range (len (sortedsel)):
         for j in range (i+1, len (sortedsel)):
             tag = sortedsel[i][1] + '_' + sortedsel[j][1] 
@@ -277,7 +283,7 @@ def build_rew_dict_scratch(operators, change_process , model):
             rwgt_points += mandatory
 
             # first append a comment line
-            rwgt_points.append("# {}=1 {}=1 rwgt_{}\n".format(sortedsel[i][1] , sortedsel[j][1], sortedsel[i][1] + "_" + sortedsel[j][1]))
+            rwgt_points.append("# {}=1 {}=1 rwgt_{} {}\n".format(sortedsel[i][1] , sortedsel[j][1], sortedsel[i][1] + "_" + sortedsel[j][1], idx))
             # change rwgt direcrory 
             rwgt_points.append("change rwgt_dir rwgt/rwgt_{}\n".format(tag))
             # change model
@@ -285,6 +291,7 @@ def build_rew_dict_scratch(operators, change_process , model):
             # evaluate the mixed term (1,1)
             rwgt_points.append("\n")
             rwgt_points.append("launch --rwgt_name={}\n".format(sortedsel[i][1] + "_" + sortedsel[j][1]))
+            idx += 1
 
             rwgt_points.append("\n")
             rwgt_points.append("\n")
@@ -295,10 +302,13 @@ def build_rew_dict_scratch(operators, change_process , model):
                 for val in [-1 ,1]:
                     tag = sortedsel[i][1]
                     if val == -1: tag += "m1"
+                    rwgt_points.append("# {}={} {}\n".format(sortedsel[i][1], val, idx))
                     rwgt_points.append("launch --rwgt_name={}\n".format(tag))
                     rwgt_points.append("    set {} {} {}\n".format(sortedsel[i][2], sortedsel[i][3], val))
                     rwgt_points.append("    set {} {} 0\n".format(sortedsel[j][2], sortedsel[j][3]))
                     rwgt_points.append("\n")
+                    idx += 1
+                    counter_single += 1
 
                 done_singles.append(sortedsel[i][0])
 
@@ -308,18 +318,23 @@ def build_rew_dict_scratch(operators, change_process , model):
                 for val in [-1 ,1]:
                     tag = sortedsel[j][1]
                     if val == -1: tag += "m1"
+                    rwgt_points.append("# {}={} {}\n".format(sortedsel[j][1], val, idx))
                     rwgt_points.append("launch --rwgt_name={}\n".format(tag))
                     rwgt_points.append("    set {} {} {}\n".format(sortedsel[j][2], sortedsel[j][3], val))
                     rwgt_points.append("    set {} {} 0\n".format(sortedsel[i][2], sortedsel[i][3]))
                     rwgt_points.append("\n")
+                    idx += 1
+                    counter_single += 1
 
                 done_singles.append(sortedsel[j][0])
 
             rew_d[ov_tag] = copy.copy(rwgt_points)
             #rew_d[idx] = copy.copy(rwgt_points)
-
-            idx += 1
-
+        
+            counter_mix += 1
+    
+    print("--> Total mixed op = " + str(counter_mix))
+    print("--> Total single op (+1 and -1 summed). Should be equal to Nops * 2 = " + str(counter_single))
     return rew_d
 
 
@@ -511,8 +526,8 @@ if __name__ == "__main__":
         mkdir("tmp_{}".format(args.cardname))
         all_outputs = glob("rwgt_*_" + args.cardname + "_output.tar.xz")
 
-        for o in all_outputs:
-            print("--> Processing reweight " + o)
+        for idx, o in enumerate(all_outputs):
+            print("--> Processing reweight " + o + " {:.2f}%".format(100*float(idx)/len(all_outputs)))
             ops = o.split("rwgt_")[1].split("_" + args.cardname + "_output.tar.xz")[0]
             # check if we already unpacked this directory 
             if os.path.isdir("tmp_{}".format(args.cardname) + "/rwgt_" + ops): continue 
@@ -545,17 +560,19 @@ if __name__ == "__main__":
         stdout = stdout.split("\n")
 
         for k in not_ok:
-
-            for line in stdout:
-                if "rwgt_" + k + "_" + args.cardname + ".sh": 
-                    print("---> Reweight point " + k + " is running on condor with id " + str(line.split(" ")[0]))
-                    continue
             
-            print("Deleting output --> {}".format(k))
-            if os.path.isdir("rwgt_{}_".format(k) + args.cardname + "_output.tar.xz"):
-                os.system("rm rwgt_{}_".format(k) + args.cardname + "_output.tar.xz")
-            print("Resubmitting --> {}".format(k))
-            os.system("condor_submit \"{}\" | tail -n1 | rev | cut -d' ' -f1 | rev".format("rwgt_" + str(k) + "_" + args.cardname + ".jdl"))
+            on_condor = False
+            for line in stdout:
+                if "rwgt_" + k + "_" + args.cardname + ".sh" in line: 
+                    print("---> Reweight point " + k + " is running on condor with id " + str(line.split(" ")[0]))
+                    on_condor = True
+
+            if not on_condor: 
+                print("Deleting output --> {}".format(k))
+                if os.path.isdir("rwgt_{}_".format(k) + args.cardname + "_output.tar.xz"):
+                    os.system("rm rwgt_{}_".format(k) + args.cardname + "_output.tar.xz")
+                print("Resubmitting --> {}".format(k))
+                os.system("condor_submit \"{}\" | tail -n1 | rev | cut -d' ' -f1 | rev".format("rwgt_" + str(k) + "_" + args.cardname + ".jdl"))
         
 
     if any(i in ["mv", "all"] for i in args.task ):        
@@ -582,7 +599,7 @@ if __name__ == "__main__":
                 os.system("mv rwgt/* " + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
                 os.system("rm -rf rwgt")
 
-    if any(i in ["precompile", "mv", "all"] for i in args.task ): 
+    if any(i in ["precompile"] for i in args.task ): 
         # compiling reweight dirs
         precompile_rwgt_dir(os.getcwd() + "/" + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent")
 
@@ -602,14 +619,21 @@ if __name__ == "__main__":
 
 
         if os.path.isdir("gridpack"):
+            print("---> Removing previously made gridpack folder")
             os.system("rm -rf gridpack")
 
         mkdir("gridpack")
-        os.system("cp -r process gridpack/process")
+
+        print("---> Move process directory into gridpack/process")
+        # mv is hundreds of time quicker than cp
+        os.system("mv process gridpack/process")
+
+        print("---> Copy Madgraph into gridpack/mgbasedir")
         os.system("cp -a {}/ gridpack/mgbasedir".format(MGBASEDIRORIG))
             
 
         os.chdir("gridpack")
+        print("---> Copy runcmsgrid_LO.sh into gridpack/runcmsgrid.sh")
         os.system("cp {}/runcmsgrid_LO.sh ./runcmsgrid.sh".format(PRODHOME))
 
         os.system("sed -i s/SCRAM_ARCH_VERSION_REPLACE/{}/g runcmsgrid.sh".format(scram_arch))
@@ -619,23 +643,27 @@ if __name__ == "__main__":
 
         if args.is5FlavorScheme:
             pdfExtraArgs+="--is5FlavorScheme"
+        
+        print("---> Retrieve pdf for {} flavour scheme".format(5 if args.is5FlavorScheme else 4))
 
         out = subprocess.Popen(["python", "{}/getMG5_aMC_PDFInputs.py".format(script_dir),  "-f",  "systematics", "-c",  "2017", "{}".format(pdfExtraArgs)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         pdfSysArgs,stderr = out.communicate()
 
         os.system("sed -i s/PDF_SETS_REPLACE/{pdfSysArgs}/g runcmsgrid.sh".format(pdfSysArgs=pdfSysArgs[:-1]))
 
+        print("---> Clean unneeded files for generation")
         #clean unneeded files for generation
         os.system("{helpers_dir}/cleangridmore.sh".format(helpers_dir=helpers_dir))
 
         # copy merge.pl from Utilities to allow merging LO events
+        print("---> Copy merge.pl from Utilities to allow merging LO events")
         os.chdir("{}/gridpack".format(WORKDIR))
         os.system("cp {}/Utilities/merge.pl .".format(PRODHOME)) 
 
 
     if any(i in ["rwgtcard"] for i in args.task ):
         os.chdir(PRODHOME)
-        build_reweight_card(rd, args.change_process, args.cardpath + "/" + args.cardname + "_reweight_card.dat")
+        build_reweight_card(rd, args.change_process, [args.cardpath + "/" + args.cardname + "_reweight_card.dat", WORKDIR + "/gridpack/process/madevent/Cards/reweight_card.dat"])
 
     
     if any(i in ["compress", "all"] for i in args.task ):
