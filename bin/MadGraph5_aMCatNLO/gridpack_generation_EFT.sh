@@ -333,8 +333,8 @@ make_gridpack () {
           ./$MGBASEDIRORIG/bin/mg5_aMC --mode=MadSTR ${name}_proc_card.dat # run invoking MadSTR plugin
       fi
 	
-      is5FlavorScheme=0
-      if tail -n 20 $LOGFILE | grep -q -e "^p *=.*b\~.*b" -e "^p *=.*b.*b\~"; then 
+      is5FlavorScheme=0 
+      if tail -n 20 $CARDSDIR/${name}_proc_card.dat | grep -q -e "p *=.*b\~.*b" -e "p *=.*b.*b\~"; then 
         is5FlavorScheme=1
       fi
     
@@ -377,7 +377,7 @@ make_gridpack () {
       echo "WARNING: If you changed the process card you need to clean the folder and run from scratch"
     
       if [ "$is5FlavorScheme" -eq -1 ]; then
-        if cat $LOGFILE_NAME*.log | grep -q -e "^p *=.*b\~.*b" -e "^p *=.*b.*b\~"; then 
+        if cat $CARDSDIR/${name}_proc_card.dat | grep -q -e "p *=.*b\~.*b" -e "p *=.*b.*b\~"; then 
             is5FlavorScheme=1
         else
             is5FlavorScheme=0
