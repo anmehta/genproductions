@@ -93,30 +93,85 @@ def make_tarball(WORKDIR, iscmsconnect, PRODHOME, CARDSDIR, CARDNAME, scram_arch
 
     # NEEDS CMSENV
     print("---> Creating tarball")
-    os.chdir("{WORKDIR}/gridpack".format(WORKDIR=WORKDIR))
+    os.chdir("{WORKDIR}".format(WORKDIR=WORKDIR))
 
-    if  iscmsconnect:  os.environ['XZ_OPT'] = "--lzma2=preset=2,dict=256MiB"
-    else:              os.environ['XZ_OPT'] = "--lzma2=preset=9,dict=512MiB"
+    f = open("compress.sh", "w")
 
-    if os.path.isdir("InputCards"): 
-      os.system("rm -rf InputCards")
+    f.write("echo  \"---> Creating tarball\"\n")
+    f.write("eval `scram runtime -sh`\n")
 
-    mkdir("InputCards")
+    f.write("cd gridpack\n")
 
-    os.system("cp {CARDSDIR}/{CARDNAME}*.* InputCards".format(CARDSDIR=CARDSDIR,CARDNAME=CARDNAME ))
-    if os.path.isfile("InputCards/{CARDNAME}_reweight_card.dat".format(CARDNAME=CARDNAME)):
-        os.system("InputCards/{CARDNAME}_reweight_card.dat process/madevent/Cards/reweight_card.dat".format(CARDNAME=CARDNAME))
+    f.write("if [ {} -gt 0 ]; then\n".format(1 if iscmsconnect else 0))
+    f.write("    XZ_OPT=\"--lzma2=preset=2,dict=256MiB\"\n")
+    f.write("else\n")
+    f.write("    XZ_OPT=\"--lzma2=preset=9,dict=512MiB\"\n")
+    f.write("fi\n")
+    f.write("\n")
+    f.write("if [ -d InputCards ]; then\n") 
+    f.write("  rm -rf InputCards\n")
+    f.write("fi\n")
 
-    EXTRA_TAR_ARGS=""
-    if os.path.isfile("{CARDSDIR}/{CARDNAME}_externaltarball.dat".format(CARDSDIR=CARDSDIR,CARDNAME=CARDNAME )):
-        EXTRA_TAR_ARGS="external_tarball header_for_madspin.txt "
+    f.write("mkdir -p InputCards\n")
+    f.write("cp {CARDSDIR}/{CARDNAME}*.* InputCards\n".format(CARDSDIR=CARDSDIR, CARDNAME=CARDNAME))
 
-    ### include merge.pl script for LO event merging 
-    if os.path.isfile("merge.pl"):
-        EXTRA_TAR_ARGS+="merge.pl "
-    os.system("XZ_OPT=\"$XZ_OPT\" tar -cJpsvf {PRODHOME}/{CARDNAME}_{scram_arch}_{cmssw_version}_tarball.tar.xz mgbasedir process runcmsgrid.sh InputCards {EXTRA_TAR_ARGS}".format( PRODHOME=PRODHOME, CARDNAME=CARDNAME, scram_arch=scram_arch, cmssw_version=cmssw_version, EXTRA_TAR_ARGS=EXTRA_TAR_ARGS ))
-    print("Gridpack created successfully at {PRODHOME}/{CARDNAME}_{scram_arch}_{cmssw_version}_tarball.tar.xz".format(PRODHOME=PRODHOME, CARDNAME=CARDNAME, scram_arch=scram_arch, cmssw_version=cmssw_version))
-    print("End of job")
+    f.write("echo  \"-->tarring\"\n")
+    
+    f.write("EXTRA_TAR_ARGS=\"\"\n")
+    f.write("if [ -e {CARDSDIR}/{CARDNAME}_externaltarball.dat ]; then\n".format(CARDSDIR=CARDSDIR, CARDNAME=CARDNAME))
+    f.write("    EXTRA_TAR_ARGS=\"external_tarball header_for_madspin.txt \"\n")
+    f.write("fi\n")
+    f.write("### include merge.pl script for LO event merging\n")
+    f.write("if [ -e merge.pl ]; then\n")
+    f.write("    EXTRA_TAR_ARGS+=\"merge.pl \"\n")
+    f.write("fi\n")
+    f.write("XZ_OPT=\"$XZ_OPT\" tar -cJpsvf {PRODHOME}/{CARDNAME}_{scram_arch}_{cmssw_version}_tarball.tar.xz mgbasedir process runcmsgrid.sh InputCards ${{EXTRA_TAR_ARGS}}\n".format( PRODHOME=PRODHOME, CARDNAME=CARDNAME, scram_arch=scram_arch, cmssw_version=cmssw_version ))
+
+    f.write("echo \"Gridpack created successfully at {PRODHOME}/{CARDNAME}_{scram_arch}_{cmssw_version}_tarball.tar.xz\"".format(PRODHOME=PRODHOME, CARDNAME=CARDNAME, scram_arch=scram_arch, cmssw_version=cmssw_version))
+    f.write("echo \"End of job\"\n")
+    f.write("cd ..\n")
+
+    f.close()
+
+
+    #make file executable
+    st = os.stat("compress.sh")
+    os.chmod("compress.sh", st.st_mode | stat.S_IEXEC)
+
+    print("RUN")
+    # run it
+    os.system("./compress.sh")
+    os.system("rm compress.sh")
+
+    #######
+
+    # old way problematic due to cmmssw
+
+    # print("---> Creating tarball")
+    # os.chdir("{WORKDIR}/gridpack".format(WORKDIR=WORKDIR))
+
+    # if  iscmsconnect:  os.environ['XZ_OPT'] = "--lzma2=preset=2,dict=256MiB"
+    # else:              os.environ['XZ_OPT'] = "--lzma2=preset=9,dict=512MiB"
+
+    # if os.path.isdir("InputCards"): 
+    #   os.system("rm -rf InputCards")
+
+    # mkdir("InputCards")
+
+    # os.system("cp {CARDSDIR}/{CARDNAME}*.* InputCards".format(CARDSDIR=CARDSDIR,CARDNAME=CARDNAME ))
+    # if os.path.isfile("InputCards/{CARDNAME}_reweight_card.dat".format(CARDNAME=CARDNAME)):
+    #     os.system("InputCards/{CARDNAME}_reweight_card.dat process/madevent/Cards/reweight_card.dat".format(CARDNAME=CARDNAME))
+
+    # EXTRA_TAR_ARGS=""
+    # if os.path.isfile("{CARDSDIR}/{CARDNAME}_externaltarball.dat".format(CARDSDIR=CARDSDIR,CARDNAME=CARDNAME )):
+    #     EXTRA_TAR_ARGS="external_tarball header_for_madspin.txt "
+
+    # ### include merge.pl script for LO event merging 
+    # if os.path.isfile("merge.pl"):
+    #     EXTRA_TAR_ARGS+="merge.pl "
+    # os.system("XZ_OPT=\"$XZ_OPT\" tar -cJpsvf {PRODHOME}/{CARDNAME}_{scram_arch}_{cmssw_version}_tarball.tar.xz mgbasedir process runcmsgrid.sh InputCards {EXTRA_TAR_ARGS}".format( PRODHOME=PRODHOME, CARDNAME=CARDNAME, scram_arch=scram_arch, cmssw_version=cmssw_version, EXTRA_TAR_ARGS=EXTRA_TAR_ARGS ))
+    # print("Gridpack created successfully at {PRODHOME}/{CARDNAME}_{scram_arch}_{cmssw_version}_tarball.tar.xz".format(PRODHOME=PRODHOME, CARDNAME=CARDNAME, scram_arch=scram_arch, cmssw_version=cmssw_version))
+    # print("End of job")
 
     return
 
@@ -587,12 +642,16 @@ if __name__ == "__main__":
         #create main rwgt directory if not present in the gridpack directory 
         if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt"):
             os.mkdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
+        
+        all_rwgt_dirs = len(rd.keys())
 
-        for key in rd.keys():
-            print("--> Processing reweight rwgt_" + str(key))
+        for idx, key in enumerate(rd.keys()):
+            print("--> Processing reweight rwgt_" + key + " {:.2f}%".format(100*float(idx)/all_rwgt_dirs))
             if is_checked and os.path.isdir("tmp_{}".format(args.cardname) + "/rwgt_" + key): 
-                if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt/rwgt_{} ".format(args.cardname, key) ):
+                if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt/rwgt_{}".format(key) ):
                     os.system("cp -r tmp_{}/rwgt_{} ".format(args.cardname, key) + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
+                else:
+                    print("--> Reweight {} already present, skipping".format(key))
 
             else:
                 os.system("tar axf rwgt_" + str(key) + "_" + args.cardname + "_output.tar.xz")
@@ -658,7 +717,13 @@ if __name__ == "__main__":
         # copy merge.pl from Utilities to allow merging LO events
         print("---> Copy merge.pl from Utilities to allow merging LO events")
         os.chdir("{}/gridpack".format(WORKDIR))
-        os.system("cp {}/Utilities/merge.pl .".format(PRODHOME)) 
+        os.system("cp {}/Utilities/merge.pl .".format(PRODHOME))
+
+        if args.createreweight:
+            print("---> Creating custom reweight card and copy it in cards folder and gridpack/process/madevent/Cards/reweight_card.dat")
+            os.chdir(PRODHOME)
+            build_reweight_card(rd, args.change_process, [args.cardpath + "/" + args.cardname + "_reweight_card.dat", WORKDIR + "/gridpack/process/madevent/Cards/reweight_card.dat"])
+
 
 
     if any(i in ["rwgtcard"] for i in args.task ):
