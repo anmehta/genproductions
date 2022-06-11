@@ -603,9 +603,21 @@ if __name__ == "__main__":
                 if not os.path.isdir("tmp_{}".format(args.cardname) + "/rwgt_" + key + "/rw_me"):
                     print("-> Missing base dir rw_me" + key)
                     not_ok.append(key)
+                else:
+                    if not os.path.isfile("tmp_{}".format(args.cardname) + "/rwgt_" + key + "/rw_me/rwgt.pkl"):
+                        print("-> Missing pickle file for dir rw_me " + key)
+                        not_ok.append(key)
+
                 if not os.path.isdir("tmp_{}".format(args.cardname) + "/rwgt_" + key + "/rw_me_second"):
                     print("-> Missing second dir rw_me_second" + key)
                     not_ok.append(key)
+
+                # Apprarently only one rwgt.pkl file is saved into the rw_me directory ??
+                # else:
+                #     if not os.path.isfile("tmp_{}".format(args.cardname) + "/rwgt_" + key + "/rw_me_second/rwgt.pkl"):
+                #         print("-> Missing pickle file for dir rw_me_second " + key)
+                #         not_ok.append(key)
+
 
 
     if any(i in ["resub"] for i in args.task ):
