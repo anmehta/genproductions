@@ -609,7 +609,7 @@ make_gridpack () {
         
         echo "cleaning temporary output"
         mv $WORKDIR/processtmp/pilotrun_gridpack.tar.gz $WORKDIR/
-        mv $WORKDIR/processtmp/Events/pilotrun/unweighted_events.lhe.gz $WORKDIR/
+        cp $WORKDIR/processtmp/Events/pilotrun/unweighted_events.lhe.gz $WORKDIR/
         #rm -rf processtmp
         mkdir process
         cd process
@@ -694,7 +694,7 @@ make_gridpack () {
       fi
 
       if [ ! -f $WORKDIR/unweighted_events.lhe.gz ]; then 
-        mv $WORKDIR/processtmp/pilotrun/unweighted_events.lhe.gz $WORKDIR/
+        cp $WORKDIR/processtmp/pilotrun/unweighted_events.lhe.gz $WORKDIR/
       fi
 
       # precompile reweighting if necessary
