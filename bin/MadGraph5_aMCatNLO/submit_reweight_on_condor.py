@@ -229,6 +229,10 @@ if [ $exitcode -ne 0 ]; then
 fi
 # Pack output and condor scratch dir info
 cd "${{condor_scratch}}/{card_name}/{card_name}_gridpack/work/process/madevent"
+
+# Remove All EPS files, they weight A LOT
+rm rwgt/*/*/SubProcesses/P*/*.ps
+
 ls
 XZ_OPT="--lzma2=preset=9,dict=512MiB" tar -cJpsf "${{condor_scratch}}/{sandbox_output}" "rwgt"
 
@@ -529,8 +533,28 @@ if __name__ == "__main__":
         if os.path.isfile(input_files) or os.path.isdir(input_files): 
             print("Tarball allready present. reusing")
         else:
-            print("tar -zchvf \"{input_files}\" {rwgt_cards} \"{card_name}\" \"{card_dir}\" \"{patches_directory}\" \"{utilities_dir}\" \"{plugin_directory}\"".format(input_files=input_files, rwgt_cards=" ".join(["\"" + args.subfolder+ "/" "rwgt_" + str(key) + ".dat\"" for key in rd.keys()] ), card_name=args.cardname, card_dir=args.cardpath, patches_directory=patches_directory, utilities_dir=utilities_dir, plugin_directory=plugin_directory))
-            os.system("tar -zchvf \"{input_files}\" {rwgt_cards} \"{card_name}\" \"{card_dir}\" \"{patches_directory}\" \"{utilities_dir}\" \"{plugin_directory}\"".format(input_files=input_files, rwgt_cards=" ".join(["\"" + args.subfolder+ "/" "rwgt_" + str(key) + "_" + args.cardname + ".dat\"" for key in rd.keys()] ), card_name=args.cardname, card_dir=args.cardpath, patches_directory=patches_directory, utilities_dir=utilities_dir, plugin_directory=plugin_directory))
+            # move process directory if under gridpack:
+            if os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/gridpack") and os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/gridpack/process"):
+                print("--> Moving process directory from gridpack/process under work directory ")
+                os.system("mv " + args.cardname + "/" + args.cardname + "_gridpack/work/gridpack/process " + WORKDIR)
+
+            exclude_rwgt = ""
+            if os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/gridpack"):
+                exclude_rwgt += "--exclude " + args.cardname + "/" + args.cardname + "_gridpack/work/gridpack "
+            if os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt"):
+                exclude_rwgt += "--exclude " + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt "
+            
+            if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process"):
+                if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/gridpack/process"):
+                    sys.exit("[ERROR] No more process directory in the gridpack!")
+                
+                else:
+                    os.system("cp -r " + args.cardname + "/" + args.cardname + "_gridpack/work/gridpack/process/!(madevent/rwgt) " + args.cardname + "/" + args.cardname + "_gridpack/work")
+
+            
+
+            print("tar {exclude} -zchvf \"{input_files}\" {rwgt_cards} \"{card_name}\" \"{card_dir}\" \"{patches_directory}\" \"{utilities_dir}\" \"{plugin_directory}\"".format(exclude=exclude_rwgt, input_files=input_files, rwgt_cards=" ".join(["\"" + args.subfolder+ "/" "rwgt_" + str(key) + ".dat\"" for key in rd.keys()] ), card_name=args.cardname, card_dir=args.cardpath, patches_directory=patches_directory, utilities_dir=utilities_dir, plugin_directory=plugin_directory))
+            os.system("tar {exclude} -zchvf \"{input_files}\" {rwgt_cards} \"{card_name}\" \"{card_dir}\" \"{patches_directory}\" \"{utilities_dir}\" \"{plugin_directory}\"".format(exclude=exclude_rwgt, input_files=input_files, rwgt_cards=" ".join(["\"" + args.subfolder+ "/" "rwgt_" + str(key) + "_" + args.cardname + ".dat\"" for key in rd.keys()] ), card_name=args.cardname, card_dir=args.cardpath, patches_directory=patches_directory, utilities_dir=utilities_dir, plugin_directory=plugin_directory))
 
 
     if any(i in ["sub", "all"] for i in args.task ):
@@ -593,7 +617,10 @@ if __name__ == "__main__":
             os.system("rm -rf rwgt")
 
     if any(i in ["check", "resub"] for i in args.task ):
-
+        
+        # remove directories from tmp if errors found so that 
+        # we can identify them while unpacking! otherwise it will already find the unpacked
+        # dir in tmp and won't process the new resutls leading to other crashes 
         not_ok = []
         for key in rd.keys():
             if not os.path.isdir("tmp_{}".format(args.cardname) + "/rwgt_" + key):
@@ -601,15 +628,18 @@ if __name__ == "__main__":
                 not_ok.append(key)
             else:
                 if not os.path.isdir("tmp_{}".format(args.cardname) + "/rwgt_" + key + "/rw_me"):
-                    print("-> Missing base dir rw_me" + key)
+                    print("-> Missing base dir rw_me" + key + " REMOVING FROM TMP")
+                    os.system("rm -rf tmp_{}".format(args.cardname) + "/rwgt_" + key)
                     not_ok.append(key)
                 else:
                     if not os.path.isfile("tmp_{}".format(args.cardname) + "/rwgt_" + key + "/rw_me/rwgt.pkl"):
-                        print("-> Missing pickle file for dir rw_me " + key)
+                        print("-> Missing pickle file for dir rw_me " + key + " REMOVING FROM TMP")
+                        os.system("rm -rf tmp_{}".format(args.cardname) + "/rwgt_" + key)
                         not_ok.append(key)
 
                 if not os.path.isdir("tmp_{}".format(args.cardname) + "/rwgt_" + key + "/rw_me_second"):
-                    print("-> Missing second dir rw_me_second" + key)
+                    print("-> Missing second dir rw_me_second" + key + " REMOVING FROM TMP")
+                    os.system("rm -rf tmp_{}".format(args.cardname) + "/rwgt_" + key)
                     not_ok.append(key)
 
                 # Apprarently only one rwgt.pkl file is saved into the rw_me directory ??
