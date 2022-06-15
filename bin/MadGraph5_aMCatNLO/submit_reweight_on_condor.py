@@ -7,6 +7,15 @@ import time
 from glob import glob
 from operator import itemgetter
 
+def get_folder_size(path):
+    size = 0.
+    for path, dirs, files in os.walk(path):
+        for f in files:
+            fp = os.path.join(path, f)
+            if os.path.isfile(fp): size += os.path.getsize(fp)
+
+    return size
+
 def build_reweight_card(rD, change_process, output):
 
     mandatory = ["change helicity False\n"]
@@ -82,7 +91,7 @@ def precompile_rwgt_dir(madevent_path):
     # run it
     os.system("./precompile.sh")
 
-
+    # remove it so it won't get tarred
     os.system("rm precompile.sh")
     
     os.chdir(orig)
@@ -92,6 +101,7 @@ def precompile_rwgt_dir(madevent_path):
 def make_tarball(WORKDIR, iscmsconnect, PRODHOME, CARDSDIR, CARDNAME, scram_arch, cmssw_version):
 
     # NEEDS CMSENV
+    # so we immerge the script in an external executable thagt will run in a child process
     print("---> Creating tarball")
     os.chdir("{WORKDIR}".format(WORKDIR=WORKDIR))
 
@@ -141,37 +151,9 @@ def make_tarball(WORKDIR, iscmsconnect, PRODHOME, CARDSDIR, CARDNAME, scram_arch
     print("RUN")
     # run it
     os.system("./compress.sh")
+
+    # remove it so it won't be tarred in the gridpack
     os.system("rm compress.sh")
-
-    #######
-
-    # old way problematic due to cmmssw
-
-    # print("---> Creating tarball")
-    # os.chdir("{WORKDIR}/gridpack".format(WORKDIR=WORKDIR))
-
-    # if  iscmsconnect:  os.environ['XZ_OPT'] = "--lzma2=preset=2,dict=256MiB"
-    # else:              os.environ['XZ_OPT'] = "--lzma2=preset=9,dict=512MiB"
-
-    # if os.path.isdir("InputCards"): 
-    #   os.system("rm -rf InputCards")
-
-    # mkdir("InputCards")
-
-    # os.system("cp {CARDSDIR}/{CARDNAME}*.* InputCards".format(CARDSDIR=CARDSDIR,CARDNAME=CARDNAME ))
-    # if os.path.isfile("InputCards/{CARDNAME}_reweight_card.dat".format(CARDNAME=CARDNAME)):
-    #     os.system("InputCards/{CARDNAME}_reweight_card.dat process/madevent/Cards/reweight_card.dat".format(CARDNAME=CARDNAME))
-
-    # EXTRA_TAR_ARGS=""
-    # if os.path.isfile("{CARDSDIR}/{CARDNAME}_externaltarball.dat".format(CARDSDIR=CARDSDIR,CARDNAME=CARDNAME )):
-    #     EXTRA_TAR_ARGS="external_tarball header_for_madspin.txt "
-
-    # ### include merge.pl script for LO event merging 
-    # if os.path.isfile("merge.pl"):
-    #     EXTRA_TAR_ARGS+="merge.pl "
-    # os.system("XZ_OPT=\"$XZ_OPT\" tar -cJpsvf {PRODHOME}/{CARDNAME}_{scram_arch}_{cmssw_version}_tarball.tar.xz mgbasedir process runcmsgrid.sh InputCards {EXTRA_TAR_ARGS}".format( PRODHOME=PRODHOME, CARDNAME=CARDNAME, scram_arch=scram_arch, cmssw_version=cmssw_version, EXTRA_TAR_ARGS=EXTRA_TAR_ARGS ))
-    # print("Gridpack created successfully at {PRODHOME}/{CARDNAME}_{scram_arch}_{cmssw_version}_tarball.tar.xz".format(PRODHOME=PRODHOME, CARDNAME=CARDNAME, scram_arch=scram_arch, cmssw_version=cmssw_version))
-    # print("End of job")
 
     return
 
@@ -240,7 +222,7 @@ XZ_OPT="--lzma2=preset=9,dict=512MiB" tar -cJpsf "${{condor_scratch}}/{sandbox_o
 # First, try XRootD via stash.osgconnect.net
 echo ">> Copying sandbox via XRootD"
 xrdcp -f "${{condor_scratch}}/{sandbox_output}" "root://stash.osgconnect.net:1094/${{stash_tmpdir##/stash}}/{sandbox_output}"
-exitcode=\$?
+exitcode=$?
 if [ $exitcode -eq 0 ]; then
     exit 0
 else
@@ -463,7 +445,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Command line parser')
     parser.add_argument('-cn', '--cardname',                    dest='cardname',            help='The name of the cards, <name>_proc_card.dat', required = True)
     parser.add_argument('-cp', '--cardpath',                    dest='cardpath',            help='The path to the cards directory', required = True)
-    parser.add_argument('-t', '--task',                         dest='task',                help='Tasks to be executed (separated by a space). Default is all. Can choose between: rew (only write rew cards and execs),\n tar (Create tarball of input gridpack),\n sub (submit all jobs),\n mv (move all results once jobs are finished in the right position),\n clean (clean all files created that are not useful),\n prepare (prepare final gridpack, set of sed and paths),\n compress (create the final gridpack)\n', required = False, nargs = "+", default=["all"])
+    parser.add_argument('-t', '--task',                         dest='task',                help='Tasks to be executed (separated by a space). Default is all. Can choose between: rew (only write rew cards and execs),\n tar (Create tarball of input gridpack),\n sub (submit all jobs),\n mv (move all results once jobs are finished in the right position),\n clean (clean all files created that are not useful),\n prepare (prepare final gridpack, set of sed and paths),\n compress (create the final gridpack)\n createsymlink (rw_me directories are a waste of space. Just retain one and create sym links to the first)', required = False, nargs = "+", default=["all"])
     parser.add_argument('-sf', '--subfolder',                   dest='subfolder',           help='The path to the folder where .jid, exec and reweight cards will be saved', required = False, default="condor_sub")
     parser.add_argument('-is5f', '--is5FlavorScheme',           dest='is5FlavorScheme',     help='Is the gridpack intended for 5fs? Default is true', required = False, default=True, action="store_false")
     parser.add_argument('-scram', '--scramarch',                dest='scramarch',           help='Scram arch version required. Default is slc7_amd64_gcc700', required = False, default="slc7_amd64_gcc700", type=str)
@@ -672,7 +654,12 @@ if __name__ == "__main__":
                 os.system("condor_submit \"{}\" | tail -n1 | rev | cut -d' ' -f1 | rev".format("rwgt_" + str(k) + "_" + args.cardname + ".jdl"))
         
 
-    if any(i in ["mv", "all"] for i in args.task ):        
+    if any(i in ["mv", "all"] for i in args.task ):  
+
+        # check if process dir under workdir
+        if os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/gridpack") and os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/gridpack/process"):
+            print("--> Moving process directory from gridpack/process under work directory ")
+            os.system("mv " + args.cardname + "/" + args.cardname + "_gridpack/work/gridpack/process " + WORKDIR)    
 
         #create rwgt dir if not present
         if not os.path.isdir(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt"):
@@ -765,6 +752,79 @@ if __name__ == "__main__":
             print("---> Creating custom reweight card and copy it in cards folder and gridpack/process/madevent/Cards/reweight_card.dat")
             os.chdir(PRODHOME)
             build_reweight_card(rd, args.change_process, [args.cardpath + "/" + args.cardname + "_reweight_card.dat", WORKDIR + "/gridpack/process/madevent/Cards/reweight_card.dat"])
+
+
+    if any(i in ["createsymlinks"] for i in args.task ):
+        # locate process dir
+        rwgt = os.path.abspath(args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent/rwgt")
+        if not os.path.isdir(rwgt):
+            rwgt = os.path.abspath(args.cardname + "/" + args.cardname + "_gridpack/work/gridpack/process/madevent/rwgt")
+            if not os.path.isdir(rwgt):
+                print("[ERROR] The rwgt directory is not under WORKDIR neither WORKDIR/gridpack")
+                sys.exit(0)
+        
+        os.chdir(rwgt)
+        all_rwgts = glob("*")
+
+        # first check that the size of each rw_me directory is exactly the same
+        all_rw_me = glob("*/rw_me")
+        basesize = get_folder_size(all_rw_me[0])
+        for i in all_rw_me[1:]:
+            if get_folder_size(i) != basesize: 
+                print("[ERROR] folder {} does not match basefolder size...".format(i))
+                sys.exit(0)
+        
+        # Take first rwgt directory in the list. Save the SM ME (rw_me) also for all the
+        # other reweight points. 
+        # Remember, the script will exit if rw_me cointains the rwgt.pkl file to avoid things getting lost or
+        # overwritten
+        for idx, j in enumerate(all_rwgts):
+            if os.path.isdir(j + "/rw_me"):
+
+                #save the index of the benchmark directory along with 
+                # the relative path of the rw_me directory.
+                # relative so that when we tar the symbolic links will remain
+                orig_rw_me = [idx, "../" + j + "/rw_me" ]
+                break 
+
+        sed_rwgt_interface = False
+        for idx, rwgt_dir in enumerate(all_rwgts):
+
+            print("---> Create symlinks to rw_me for {} {:.2f}%".format(rwgt_dir, 100*float(idx)/(len(all_rwgts)-1)))
+
+            os.chdir(rwgt_dir)
+
+            if os.path.isfile("rw_me/rwgt.pkl"): 
+                print("[INFO] rwgt.pkl is under rw_me, this step assumes rwgt.pkl under rw_me_second ... MOVING")
+                os.system("mv rw_me/rwgt.pkl rw_me_second")
+                sed_rwgt_interface = True
+                #sys.exit(0)
+
+            # do not create symlink if the index is equal to the 
+            # original designated rw directory 
+            if idx == orig_rw_me[0]: 
+                os.chdir(rwgt)
+                continue
+            
+            if not os.path.islink("rw_me"):
+                print("--> Removing")
+                os.system("rm -rf rw_me")
+                os.system("ln -s {} rw_me".format(orig_rw_me[1]))
+            else:
+                print("---> Symlink for rw_me already present")
+                # if there is a symlink this procedure was already done, so we specifiy 
+                # that the script should change the path to pick up the pickles from rw_me to rw_me_second
+                sed_rwgt_interface = True
+
+            os.chdir(rwgt)
+
+        # So if we found that pkls files are saved in rw_me directory 
+        # we assume that the reweight interface of madgraph will search pickles 
+        # in rw_me. We change that to rw_me_second in functions do_launch and load_from_pickle
+        if sed_rwgt_interface:
+            os.chdir(WORKDIR)
+            os.system("sed -i s/\"self.rwgt_dir,\'rw_me\',\'rwgt.pkl\'\"/\"self.rwgt_dir,\'rw_me_second\',\'rwgt.pkl\'\"/g {}".format("gridpack/mgbasedir/madgraph/interface/reweight_interface.py"))
+            os.system("sed -i s/\"self.rwgt_dir, \'rw_me\', \'rwgt.pkl\'\"/\"self.rwgt_dir,\'rw_me_second\',\'rwgt.pkl\'\"/g {}".format("gridpack/mgbasedir/madgraph/interface/reweight_interface.py"))
 
 
 
