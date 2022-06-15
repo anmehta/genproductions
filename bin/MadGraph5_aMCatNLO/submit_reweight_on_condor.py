@@ -74,7 +74,7 @@ def precompile_rwgt_dir(madevent_path):
     f.write("       echo \"Compiling subprocess $(basename $file)\"\n")
     f.write("       cd $file\n")
     f.write("       for i in 2 3; do\n")
-    f.write("           MENUM=$i make matrix${i}py.so >& /dev/null\n")
+    f.write("           MENUM=$i make -j8 matrix${i}py.so >& /dev/null\n")
     f.write("           echo \"Library MENUM=$i compiled with status $?\"\n")
     f.write("       done\n")
     f.write("       cd -\n")
@@ -619,10 +619,10 @@ if __name__ == "__main__":
                         os.system("rm -rf tmp_{}".format(args.cardname) + "/rwgt_" + key)
                         not_ok.append(key)
 
-                if not os.path.isdir("tmp_{}".format(args.cardname) + "/rwgt_" + key + "/rw_me_second"):
-                    print("-> Missing second dir rw_me_second" + key + " REMOVING FROM TMP")
-                    os.system("rm -rf tmp_{}".format(args.cardname) + "/rwgt_" + key)
-                    not_ok.append(key)
+                    elif not os.path.isdir("tmp_{}".format(args.cardname) + "/rwgt_" + key + "/rw_me_second") and key not in not_ok:
+                        print("-> Missing second dir rw_me_second" + key + " REMOVING FROM TMP")
+                        os.system("rm -rf tmp_{}".format(args.cardname) + "/rwgt_" + key)
+                        not_ok.append(key)
 
                 # Apprarently only one rwgt.pkl file is saved into the rw_me directory ??
                 # else:
@@ -689,7 +689,12 @@ if __name__ == "__main__":
 
     if any(i in ["precompile"] for i in args.task ): 
         # compiling reweight dirs
-        precompile_rwgt_dir(os.getcwd() + "/" + args.cardname + "/" + args.cardname + "_gridpack/work/process/madevent")
+        rwgt_dir = os.path.join(args.cardname, args.cardname + "_gridpack/work/process")
+        if not os.path.isdir(rwgt_dir):
+            rwgt_dir = os.path.join(args.cardname, args.cardname + "_gridpack/work/gridpack/process")
+            if not os.path.isdir(rwgt_dir): sys.exit("[ERROR] no process dir")
+
+        precompile_rwgt_dir(os.path.join(rwgt_dir, "madevent"))
 
 
     #############################################
