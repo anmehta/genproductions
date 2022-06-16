@@ -14,6 +14,6 @@ define l+ = e+ mu+ ta+
 define l- = e- mu- ta-
 define vl = ve vm vt
 define vl~ = ve~ vm~ vt~
-generate    p p > w+ l+ l- j j QCD=0 SMHLOOP=0, w+ > l+ vl 
-add process p p > w- l+ l- j j QCD=0 SMHLOOP=0, w- > l- vl~ 
+generate    p p > l+ vl  l+ l- j j QCD=0 SMHLOOP=0
+add process p p > l- vl~ l+ l- j j QCD=0 SMHLOOP=0
 output WZTo3LNujj_EWK_SM -nojpeg
